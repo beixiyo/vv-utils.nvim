@@ -187,6 +187,51 @@ test('README.md: 包含 get_fg', function()
   assert(found, 'README 应包含 get_fg')
 end)
 
+-- 7. editor.copy_path
+test('editor.copy_path: 函数存在', function()
+  package.loaded['vv-utils.editor'] = nil
+  local ed = require('vv-utils.editor')
+  assert(type(ed.copy_path) == 'function', 'editor.copy_path 应为函数')
+end)
+
+test('editor.copy_path: 外部 path + silent 复制绝对路径', function()
+  local ed = require('vv-utils.editor')
+  local tmp = vim.fn.tempname()
+  vim.fn.writefile({ '' }, tmp)
+  local got = ed.copy_path({ path = tmp, notify = false })
+  assert(got == tmp or got == vim.fn.fnamemodify(tmp, ':p'),
+    '期望返回绝对路径, 实际: ' .. tostring(got))
+  vim.fn.delete(tmp)
+end)
+
+test('editor.copy_path: 显式行号范围 line={l1,l2}', function()
+  local ed = require('vv-utils.editor')
+  local tmp = vim.fn.tempname()
+  vim.fn.writefile({ '' }, tmp)
+  local got = ed.copy_path({ path = tmp, line = { 18, 29 }, notify = false })
+  assert(got and got:match(':18%-29$'),
+    '期望以 :18-29 结尾, 实际: ' .. tostring(got))
+
+  local single = ed.copy_path({ path = tmp, line = { 42, 42 }, notify = false })
+  assert(single and single:match(':42$') and not single:match('%-'),
+    '相同 l1 l2 应输出单行格式 :42, 实际: ' .. tostring(single))
+
+  local reversed = ed.copy_path({ path = tmp, line = { 99, 50 }, notify = false })
+  assert(reversed and reversed:match(':50%-99$'),
+    'l1>l2 应自动交换为 :50-99, 实际: ' .. tostring(reversed))
+
+  vim.fn.delete(tmp)
+end)
+
+test('editor.copy_path: 无路径时返回 nil', function()
+  local ed = require('vv-utils.editor')
+  -- 当前 buffer 是脚本文件，先切到无名 buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(buf)
+  local got = ed.copy_path({ notify = false })
+  assert(got == nil, '空 buffer 应返回 nil, 实际: ' .. tostring(got))
+end)
+
 -- 输出结果
 print(string.rep('─', 50))
 print('vv-utils.nvim 变更验证结果')

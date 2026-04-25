@@ -28,7 +28,7 @@
 | `vv-utils.hl` | [lua/vv-utils/hl.lua](lua/vv-utils/hl.lua) | `register(augroup, specs, opts?)` 批量注册 highlight（自动补 `default=true` + `ColorScheme` 自动重挂）；`get_fg(name, fallback?)` 读取高亮组前景色（返回 `#RRGGBB`） |
 | `vv-utils.help_panel` | [lua/vv-utils/help_panel.lua](lua/vv-utils/help_panel.lua) | `open(opts)` 通用 keymap 帮助浮窗：反读 `buf` keymap（按 desc 前缀），按 action → `{cat, icon}` 分组，圆角浮窗渲染 |
 | `vv-utils.bufdelete` | [lua/vv-utils/bufdelete.lua](lua/vv-utils/bufdelete.lua) | 删除 buffer 不破坏窗口布局：`delete(buf?)` / `all()` / `other()` / `smart()`（浮窗→关浮窗；分屏→关分屏；否则 delete）；`is_throwaway(buf)` / `wipe_if_throwaway(buf)` 判定并清理空 `[No Name]` |
-| `vv-utils.editor` | [lua/vv-utils/editor.lua](lua/vv-utils/editor.lua) | 编辑器通用工具：`copy(text, opts?)` 写系统剪贴板 + 通知；`visual_range()` 返回可视选区行号范围 |
+| `vv-utils.editor` | [lua/vv-utils/editor.lua](lua/vv-utils/editor.lua) | 编辑器通用工具：`copy(text, opts?)` 写系统剪贴板 + 通知；`visual_range()` 返回可视选区行号范围；`copy_path(opts?)` 复制路径（绝对/相对项目根、可附带行号 `path:42` / 可视范围 `path:42-51`、支持外部 `path` 和 `notify=false` 静默模式） |
 | `vv-utils.bigfile` | [lua/vv-utils/bigfile.lua](lua/vv-utils/bigfile.lua) | 大文件保护：需 `setup()` 启用。注册 filetype 探测（字节/行长阈值），命中后禁用 matchparen / folding / statuscolumn / conceal / completion / mini.* 系列 |
 | `vv-utils.format` | [lua/vv-utils/format.lua](lua/vv-utils/format.lua) | 中英文排版（算法对齐 [vsc-word-space](https://github.com/beixiyo/vsc-word-space)）：纯函数 `add_spaces_around_english(text)` / `clean_line_trailing(text)`；buffer 副作用 `add_spaces(opts?)` / `clean_trailing(opts?)`，优先级 `opts.range = {l1, l2}` > visual 选区嗅探 > 全文；`setup({ commands = true })` 注册 `:VVAddSpaces` / `:VVCleanTrailing`（支持 range，如 `:5,10VVAddSpaces`） |
 
