@@ -33,6 +33,12 @@ hl.register('vv-utils.help_panel.hl', {
 ---@field cat string      分类名（用于分组）
 ---@field icon? string    nerd-font 图标字符
 
+---@class VVHelpExtraRow
+---@field cat string             分类（与 categories 对应；未声明的分类会自动追加到 ordered_cats 末尾）
+---@field lhs string             键位字面量（如 '<S-Tab>'）
+---@field action string          动作名（不走 actions meta，直接渲染）
+---@field icon? string           图标字符（默认空）
+
 ---@class VVHelpPanelOpts
 ---@field source_buf integer                              从哪个 buffer 读取 keymap
 ---@field desc_prefix string                              只抓 desc 匹配 '^<prefix>(.+)$' 的键位
@@ -41,6 +47,7 @@ hl.register('vv-utils.help_panel.hl', {
 ---@field title? string                                   浮窗顶部标题文本
 ---@field title_icon? string                              标题前的图标
 ---@field filetype? string                                浮窗 buffer 的 filetype
+---@field extra_rows? VVHelpExtraRow[]                    额外注入的行（不来自 buf keymap，如浮窗 prompt 的快捷键）
 
 ---@param opts VVHelpPanelOpts
 ---@return table<string, {lhs:string, action:string, icon:string}[]>
@@ -72,8 +79,28 @@ function M.open(opts)
     'help-panel: source_buf & desc_prefix required')
 
   local by_cat = collect(opts)
+
+  -- extra_rows：注入到 by_cat（其分类若未在 categories 里也会兜底到 Other 之前追加）
+  local extra_cats_seen = {}
+  if opts.extra_rows then
+    for _, r in ipairs(opts.extra_rows) do
+      local cat = r.cat or 'Other'
+      by_cat[cat] = by_cat[cat] or {}
+      table.insert(by_cat[cat], { lhs = r.lhs, action = r.action, icon = r.icon or '' })
+      extra_cats_seen[cat] = true
+    end
+  end
+
   local ordered_cats = {}
-  for _, c in ipairs(opts.categories or {}) do ordered_cats[#ordered_cats + 1] = c end
+  for _, c in ipairs(opts.categories or {}) do
+    ordered_cats[#ordered_cats + 1] = c
+    extra_cats_seen[c] = nil
+  end
+  -- 追加 extra_rows 中未在 categories 里声明的分类（按出现顺序——这里以 keys 遍历，
+  -- 对单个新分类足够；多个时调用方应在 categories 里显式声明顺序）
+  for cat in pairs(extra_cats_seen) do
+    ordered_cats[#ordered_cats + 1] = cat
+  end
   -- 追加 Other（若未显式声明）
   local has_other = false
   for _, c in ipairs(ordered_cats) do if c == 'Other' then has_other = true break end end
