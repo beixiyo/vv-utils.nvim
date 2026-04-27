@@ -23,8 +23,8 @@ local M = {}
 ---@field setup? fun(ctx: vv-utils.bigfile.Ctx): nil  自定义副作用（覆盖默认禁用项）
 local defaults = {
   notify = true,
-  size = 1.5 * 1024 * 1024,
-  line_length = 1000,
+  size = 1 * 1024 * 1024,
+  line_length = 800,
   setup = function(ctx)
     if vim.fn.exists(':NoMatchParen') ~= 0 then
       vim.cmd('NoMatchParen')
@@ -52,12 +52,19 @@ function M.setup(user_opts)
   vim.filetype.add({
     pattern = {
       ['.*'] = function(path, buf)
-        if not path or not buf or vim.bo[buf].filetype == 'bigfile' then return end
-        if path ~= vim.fs.normalize(vim.api.nvim_buf_get_name(buf)) then return end
-        local size = vim.fn.getfsize(path)
+        if not buf or vim.bo[buf].filetype == 'bigfile' then return end
+        local lines = vim.api.nvim_buf_line_count(buf)
+        if lines <= 0 then return end
+        -- 优先看 buffer 实际字节数：覆盖 scratch buf（无 buffer name、磁盘上无对应文件，
+        -- 如 vv-git 把 `git show` 内容塞进内存 buffer 的场景）
+        -- nvim_buf_get_offset(buf, lines) = 末行末尾的字节偏移 ≈ buffer 总字节数。
+        local ok, size = pcall(vim.api.nvim_buf_get_offset, buf, lines)
+        if not ok or not size or size <= 0 then
+          -- fallback 到磁盘大小：buffer 内容尚未 load 时（BufNewFile 等）
+          size = path and vim.fn.getfsize(path) or -1
+        end
         if size <= 0 then return end
         if size > opts.size then return 'bigfile' end
-        local lines = vim.api.nvim_buf_line_count(buf)
         return (size - lines) / lines > opts.line_length and 'bigfile' or nil
       end,
     },
