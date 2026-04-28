@@ -1,12 +1,11 @@
--- git 索引：异步跑 git status --porcelain=v1 -z --ignored，输出纯数据包
+-- git 索引：异步跑 git 命令，输出纯数据包
 -- 无副作用（不订阅 autocmd、不触发 render），调用方自己做 debounce + 应用结果
 --
--- 典型用法：
---   require('vv-utils.git').index('/path/to/repo', function(idx)
---     if not idx then return end             -- 非 git 仓库
---     print(idx.status_map['/abs/path'])      -- 'XY' 或 nil
---     print(idx.is_ignored('/abs/path'))      -- 包含祖先目录命中
---   end, { untracked = 'all' })               -- 可选：'normal'（默认，目录折叠）| 'all'（展开到单个文件）
+-- 核心 API：
+--   M.index(root, cb, opts)           -- git status --porcelain：状态标记（M/A/D/??/!!）
+--   M.tracked(root, cb, opts)         -- git ls-files：tracked 路径集合
+--   M.ignored_entries(root, cb, opts) -- git ls-files --others --ignored --directory：
+--                                     --   ignored 检测（不递归进 ignored 目录，HOME-as-repo 友好）
 
 local M = {}
 
@@ -169,11 +168,17 @@ end
 -- 比 status --ignored 快一到两个数量级（HOME-as-repo 场景关键）
 ---@param root string
 ---@param cb fun(t: UtilsGitTracked?)
-function M.tracked(root, cb)
+---@param opts? { scope?: boolean }
+function M.tracked(root, cb, opts)
   if not root or root == '' then cb(nil); return end
   root = norm(root)
+  local cmd = { 'git', '-C', root, 'ls-files', '-z' }
+  if opts and opts.scope then
+    table.insert(cmd, '--')
+    table.insert(cmd, '.')
+  end
   vim.system(
-    { 'git', '-C', root, 'ls-files', '-z' },
+    cmd,
     { text = false },
     vim.schedule_wrap(function(st)
       if st.code ~= 0 then cb(nil); return end
@@ -206,6 +211,11 @@ function M.index(root, cb, opts)
   if opts and opts.untracked == 'all' then
     table.insert(args, '-uall')
   end
+  -- scope = true → 只扫 -C 目录下的文件（HOME-as-repo 场景关键：避免扫整个 ~）
+  if opts and opts.scope then
+    table.insert(args, '--')
+    table.insert(args, '.')
+  end
   vim.system(args, { text = false }, vim.schedule_wrap(function(st)
     if st.code ~= 0 then cb(nil); return end
     local status_map, ifiles, idirs, rename_map = M.parse_porcelain_z(st.stdout, root)
@@ -216,6 +226,39 @@ function M.index(root, cb, opts)
       is_ignored = M.make_is_ignored(ifiles, idirs),
       rename_map = rename_map,
     })
+  end))
+end
+
+-- 列出所有 untracked + ignored 的路径。走 `git ls-files --others --ignored --directory`：
+--   * `--others`：只看 untracked（tracked 文件天然排除，无需手动过滤）
+--   * `--ignored --exclude-standard`：只列被 .gitignore 命中的
+--   * `--directory`：ignored 目录作为整体报告，**不递归进去**
+--     （这是 `git status --ignored` 慢的根因——它递归进 Downloads/Library 等巨目录）
+-- 语义完全等价于 `git status --ignored` 里的 `!!` 条目，但快几个数量级。
+---@param root string  CWD for git（-C 参数）
+---@param cb fun(ignored_files: table<string,boolean>, ignored_dirs: table<string,boolean>)
+---@param opts? { scope?: boolean }
+function M.ignored_entries(root, cb, opts)
+  if not root or root == '' then cb({}, {}); return end
+  root = norm(root)
+  local cmd = { 'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z' }
+  if opts and opts.scope then
+    table.insert(cmd, '--')
+    table.insert(cmd, '.')
+  end
+  vim.system(cmd, { text = false }, vim.schedule_wrap(function(st)
+    local ifiles, idirs = {}, {}
+    if st.code ~= 0 then cb(ifiles, idirs); return end
+    if not st.stdout or #st.stdout == 0 then cb(ifiles, idirs); return end
+    for rel in (st.stdout .. '\0'):gmatch('([^%z]+)%z') do
+      -- --directory 输出的目录以 '/' 结尾
+      if rel:sub(-1) == '/' then
+        idirs[norm(root .. '/' .. rel)] = true
+      else
+        ifiles[norm(root .. '/' .. rel)] = true
+      end
+    end
+    cb(ifiles, idirs)
   end))
 end
 
