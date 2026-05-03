@@ -82,7 +82,7 @@ function M.apply_to_buffer(transform, opts)
 
   if processed == original then
     if not opts.silent then
-      vim.notify(opts.msg_unchanged or '没有需要处理的内容', vim.log.levels.INFO, { title = 'vv-utils.format' })
+      vim.notify(opts.msg_unchanged or 'Nothing to process', vim.log.levels.INFO, { title = 'vv-utils.format' })
     end
     return false
   end

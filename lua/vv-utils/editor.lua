@@ -16,7 +16,7 @@ function M.copy(text, opts)
   opts = opts or {}
   vim.fn.setreg('+', text)
   if opts.silent then return end
-  vim.notify('已复制: ' .. text, opts.level or vim.log.levels.INFO, { title = opts.title or 'copy' })
+  vim.notify('Copied: ' .. text, opts.level or vim.log.levels.INFO, { title = opts.title or 'copy' })
 end
 
 --- 当前可视选区的行号范围（normal 模式返回 nil）
