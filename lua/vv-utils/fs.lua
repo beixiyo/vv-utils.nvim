@@ -201,4 +201,24 @@ function M.sync_buffers(old, new)
   end
 end
 
+---@param source string 文件路径或 JSON 字符串
+---@return table
+function M.load_json(source)
+  local raw = source
+  if not source:match('^%s*[%[{]') then
+    source = norm(source)
+    if not M.exists(source) then return {} end
+    raw = M.read_all(source)
+  end
+  local ok, data = pcall(vim.json.decode, raw)
+  return ok and type(data) == 'table' and data or {}
+end
+
+---@param path string JSON 文件完整路径，父目录不存在会自动创建
+---@param data table
+function M.save_json(path, data)
+  path = norm(path)
+  M.write_all(path, vim.json.encode(data))
+end
+
 return M
