@@ -33,6 +33,7 @@
 | `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
 | `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`register_hl()` 注册 VSCode Dark+ 调色板 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity |
+| `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
