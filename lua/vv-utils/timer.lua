@@ -14,7 +14,9 @@ function M.debounce(fn, wait)
 
     local ms = type(wait) == 'function' and wait() or wait
     if ms == 0 then
-      vim.schedule(function() fn(unpack(args)) end)
+      timer:start(1, 0, vim.schedule_wrap(function()
+        fn(unpack(args))
+      end))
     else
       timer:start(ms, 0, vim.schedule_wrap(function()
         fn(unpack(args))
