@@ -35,15 +35,17 @@ function M.hide_chrome(win, overrides)
   local target = vim.tbl_extend('force', M.DEFAULT_OPTS, overrides or {})
   local saved = {}
   for opt, _ in pairs(target) do
-    saved[opt] = vim.wo[win][opt]
+    saved[opt] = vim.api.nvim_get_option_value(opt, { win = win })
   end
+  -- scope='local'：只改本窗口，不污染全局默认值。
+  -- vim.wo[win] 等于 :set，会同时改全局默认 → 后续新建窗口全部继承 number=false
   for opt, val in pairs(target) do
-    vim.wo[win][opt] = val
+    vim.api.nvim_set_option_value(opt, val, { win = win, scope = 'local' })
   end
   return function()
     if not vim.api.nvim_win_is_valid(win) then return end
     for opt, val in pairs(saved) do
-      vim.wo[win][opt] = val
+      vim.api.nvim_set_option_value(opt, val, { win = win, scope = 'local' })
     end
   end
 end
@@ -56,7 +58,8 @@ end
 function M.show_chrome(win)
   if not vim.api.nvim_win_is_valid(win) then return end
   for opt, _ in pairs(M.DEFAULT_OPTS) do
-    vim.wo[win][opt] = vim.go[opt]
+    local val = vim.api.nvim_get_option_value(opt, { scope = 'global' })
+    vim.api.nvim_set_option_value(opt, val, { win = win, scope = 'local' })
   end
 end
 
