@@ -147,16 +147,22 @@ function M.open(opts)
       line = line .. icon .. string.rep(' ', icon_pad) .. ' '
       local icon_end = icon_start + #icon
 
+      -- Neovim 对 <C-x> 统一存为 <C-X>；Ctrl 不区分大小写，还原为小写显示
+      -- <M-> 和 <S-> 保持原样（Alt/Shift 区分大小写）
+      local display_lhs = r.lhs:gsub('(<C%-)(%u)(>)', function(pre, ch, post)
+        return pre .. ch:lower() .. post
+      end)
       local key_start = #line
-      line = line .. string.format('%-' .. key_w .. 's', r.lhs)
+      line = line .. string.format('%-' .. key_w .. 's', display_lhs)
       local key_end = key_start + #r.lhs
 
       local arrow_start = #line
       line = line .. '  → '
       local arrow_end = #line
 
+      local display_action = r.action:gsub('_', ' ')
       local action_start = #line
-      line = line .. r.action
+      line = line .. display_action
       local action_end = #line
 
       lines[#lines + 1] = line
