@@ -97,6 +97,7 @@ function M.wipe_if_throwaway(buf)
 end
 
 -- 智能关闭优先级：焦点浮窗 → 关浮窗；当前 tab 有多个普通窗口 → close 当前分屏；否则 delete()
+-- winfixwidth 窗口视为侧栏（vv-explorer 等），不计入"普通分屏"
 function M.smart()
   local cur = vim.api.nvim_get_current_win()
   if vim.api.nvim_win_get_config(cur).relative ~= "" then
@@ -104,7 +105,9 @@ function M.smart()
     return
   end
   local normal = vim.tbl_filter(function(w)
-    return vim.api.nvim_win_get_config(w).relative == ""
+    if vim.api.nvim_win_get_config(w).relative ~= "" then return false end
+    if w ~= cur and vim.wo[w].winfixwidth then return false end
+    return true
   end, vim.api.nvim_tabpage_list_wins(0))
   if #normal > 1 then
     vim.cmd("close")
