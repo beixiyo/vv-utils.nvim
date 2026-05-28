@@ -4,6 +4,8 @@
 
 ### Added
 
+- **drop**：终端拖拽路径检测 + handler 分发（`vv-utils.drop`）。覆写 `vim.paste`，从 bracketed paste 中检测绝对路径（`/` 或 `~` 开头），支持 shell-escaped / 带引号 / `file://` URI 格式。内置默认 handler：Normal 模式 + 普通 buffer 下自动 `:edit` 打开文件。`register(handler)` 允许外部插件扩展（如 vv-explorer 拖拽粘贴到目录）。已验证终端：Kitty (Linux/macOS)、Ghostty (Linux/GTK4)、Alacritty；已知限制：Ghostty macOS (AppKit) 拖拽不走 bracketed paste，无法拦截
+
 - **animate**：通用补间动画引擎（`vv-utils.animate`）。`add(from, to, cb, opts?)` / `del(id)` — uv_timer 驱动，支持 id 去重、int 取整、5 种内置 easing（linear / outQuad / outCubic / inQuad / inOutQuad）、duration 双模式（step_ms / total_ms）
 
 ### Changed
