@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- **fs.copy：dst 位于 src 子树内时硬报错，杜绝复制目录进自身导致的无限递归（写满磁盘）**
 - **timer.throttle：fn 抛错后 `running` 永久卡死、节流彻底失效**：`fn` 未 pcall 且在「启动复位 timer」之前同步调用，一旦抛错控制流逃逸 → 复位 timer 永不 `start`、`running` 永远停在 true，之后所有调用都被开头的 `if running then return` 挡掉。改为**先安排复位 timer 再调 `fn`**：fn 抛错仍向上传播（与原行为一致），但 `running` 必在 `limit` 毫秒后复位、节流自动恢复
 
 ### Added

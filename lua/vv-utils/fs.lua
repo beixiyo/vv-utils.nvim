@@ -127,6 +127,12 @@ function M.copy(src, dst)
   src = norm(src); dst = norm(dst)
   if src == dst then error('copy src == dst: ' .. src) end
 
+  -- 防自包含递归：dst 落在 src 子树内（dst==src 已在上面拦）时，复制目录进自身会无限
+  -- 递归 src/dst/dst/... 直到写满磁盘 / 耗尽 inode。这里在创建任何目录前硬拦，保护所有调用方。
+  if dst:sub(1, #src + 1) == src .. '/' then
+    error('copy: dst 位于 src 子树内，拒绝（会无限递归）: ' .. dst .. ' ⊂ ' .. src)
+  end
+
   local st = uv.fs_lstat(src)
 
   if not st then error('copy source missing: ' .. src) end
