@@ -11,6 +11,33 @@ local M = {}
 
 local function norm(p) return vim.fs.normalize(p) end
 
+--- 探测 cwd 所在 git 仓库根（rev-parse --show-toplevel）。同步版（会阻塞，勿用于热路径）。
+---@param cwd? string  默认 vim.fn.getcwd()
+---@return string? root  规范化绝对路径；非 git 仓库 / 出错返回 nil
+function M.root(cwd)
+  cwd = cwd or vim.fn.getcwd()
+  local out = vim.fn.systemlist({ 'git', '-C', cwd, 'rev-parse', '--show-toplevel' })
+  if vim.v.shell_error ~= 0 or not out[1] or out[1] == '' then return nil end
+  return vim.fs.normalize(out[1])
+end
+
+--- 异步版：不阻塞主循环，结果经 cb 回传。用于热路径（statuscolumn 等）
+---@param cwd string
+---@param cb fun(root: string?)  非 git 仓库 / 出错回传 nil
+function M.root_async(cwd, cb)
+  vim.system(
+    { 'git', '-C', cwd, 'rev-parse', '--show-toplevel' },
+    { text = true },
+    vim.schedule_wrap(function(res)
+      if res.code ~= 0 or not res.stdout or res.stdout == '' then
+        cb(nil)
+      else
+        cb(vim.fs.normalize(vim.trim(res.stdout)))
+      end
+    end)
+  )
+end
+
 -- porcelain v1 -z 格式：`XY path\0`（rename/copy 额外跟一个旧路径 `old\0`）
 -- 目录级 ignored 以 '/' 结尾，单独进 ignored_dirs
 ---@param data string
