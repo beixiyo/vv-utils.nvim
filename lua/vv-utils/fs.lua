@@ -182,9 +182,20 @@ function M.read_all(path)
   if not fd then error('open failed: ' .. path .. ' — ' .. tostring(err)) end
   local st = uv.fs_fstat(fd)
   if not st then uv.fs_close(fd); error('fstat failed: ' .. path) end
-  local data = uv.fs_read(fd, st.size, 0)
+
+  -- fs_read 允许短读（>2GB 文件 / 网络 / FUSE / 被信号中断），单次读会静默截断丢文件尾。
+  -- 循环按已读偏移补读，直到读满 st.size 或遇 EOF（返回空）
+  local parts = {}
+  local total = 0
+  while total < st.size do
+    local chunk = uv.fs_read(fd, st.size - total, total)
+    if not chunk or chunk == '' then break end -- EOF / 无更多数据
+    parts[#parts + 1] = chunk
+    total = total + #chunk
+  end
+
   uv.fs_close(fd)
-  return data or ''
+  return table.concat(parts)
 end
 
 -- 原子地把整个文件内容写入 path；父目录自动 mkdir_p。失败 error。
@@ -236,9 +247,12 @@ function M.sync_buffers(old, new)
       end
 
       if target then
-        vim.api.nvim_buf_set_name(buf, target)
-        -- 打标 lua filetype；不 :e 避免丢 unsaved 状态
-        pcall(vim.api.nvim_buf_call, buf, function() vim.cmd('silent! doautocmd BufFilePost') end)
+        -- nvim_buf_set_name 可能抛 E95（已存在同名 loaded buffer：幽灵 buffer / 软链重名 / 该名
+        -- 之前被打开过等）。用 pcall 兜住，避免异常冒泡中断调用方后续的 UI 刷新/聚焦。
+        if pcall(vim.api.nvim_buf_set_name, buf, target) then
+          -- 打标 lua filetype；不 :e 避免丢 unsaved 状态
+          pcall(vim.api.nvim_buf_call, buf, function() vim.cmd('silent! doautocmd BufFilePost') end)
+        end
       end
       ::continue::
     end
