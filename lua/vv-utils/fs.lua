@@ -14,6 +14,44 @@ function M.exists(path)
   return uv.fs_stat(path) ~= nil
 end
 
+-- 把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）。
+--
+-- 必要性：`vim.fs.normalize` / `fnamemodify(':p')` 只做字符串规整，不解析符号链接，
+-- 而 Vim 打开符号链接文件后 `nvim_buf_get_name` 返回的是已解析的真实路径。两套口径
+-- 在有 symlink 时会得到「同一文件的两种路径串」，直接字符串相等比对会漏命中。
+--
+-- 行为：路径存在 → `uv.fs_realpath`（解析所有中间 symlink）；
+--       路径不存在（如已删除、用于父级回溯）→ 解析「最长存在的祖先目录」后拼回剩余段，
+--       使「已删文件」与其 buffer name（解析形）仍可对齐；
+--       完全无法解析 → 退回 `vim.fs.normalize(fnamemodify(':p'))`，保证总返回字符串。
+---@param path string
+---@return string
+function M.realpath(path)
+  if not path or path == '' then return path end
+  local abs = norm(vim.fn.fnamemodify(path, ':p'))
+
+  local real = uv.fs_realpath(abs)
+  if real then return norm(real) end
+
+  -- 路径本身不存在：解析最长存在的祖先，再拼回剩余段
+  local rest = {}
+  local cur = abs:gsub('/+$', '')
+  while cur ~= '' do
+    local parent = dirname(cur)
+    if parent == cur then break end
+    local rp = uv.fs_realpath(parent)
+    if rp then
+      table.insert(rest, 1, basename(cur))
+      local sep = rp:sub(-1) == '/' and '' or '/'
+      return norm(rp .. sep .. table.concat(rest, '/'))
+    end
+    table.insert(rest, 1, basename(cur))
+    cur = parent
+  end
+
+  return abs
+end
+
 ---@param path string 递归 mkdir -p（0755）
 function M.mkdir_p(path)
   path = norm(path)
