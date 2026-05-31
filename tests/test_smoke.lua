@@ -213,8 +213,9 @@ test('editor.copy_path: 显式行号范围 line={l1,l2}', function()
     '期望以 :18-29 结尾, 实际: ' .. tostring(got))
 
   local single = ed.copy_path({ path = tmp, line = { 42, 42 }, notify = false })
-  assert(single and single:match(':42$') and not single:match('%-'),
-    '相同 l1 l2 应输出单行格式 :42, 实际: ' .. tostring(single))
+  -- 用精确的范围模式判断「无范围」，避免误匹配路径里的连字符（如 /tmp/claude-1000/...）
+  assert(single and single:match(':42$') and not single:match(':%d+%-%d+$'),
+    '相同 l1 l2 应输出单行格式 :42（无范围）, 实际: ' .. tostring(single))
 
   local reversed = ed.copy_path({ path = tmp, line = { 99, 50 }, notify = false })
   assert(reversed and reversed:match(':50%-99$'),
