@@ -87,6 +87,15 @@ function M.apply_to_buffer(transform, opts)
     return false
   end
 
+  -- set_lines 作用于当前 buffer（0），故 vim.bo.modifiable 判的就是它
+  -- help/quickfix/只读 buffer 上若直接写入会抛 E21，这里友好返回
+  if not vim.bo.modifiable then
+    if not opts.silent then
+      vim.notify('buffer 不可修改', vim.log.levels.WARN, { title = 'vv-utils.format' })
+    end
+    return false
+  end
+
   local new_lines = vim.split(processed, '\n', { plain = true })
   vim.api.nvim_buf_set_lines(0, from_row, to_row, false, new_lines)
 

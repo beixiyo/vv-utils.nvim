@@ -105,13 +105,16 @@ function Animation:start(from, to, cb)
   local easing = opts.easing or 'linear'
   local easing_fn = type(easing) == 'function' and easing or easing_fns[easing] or easing_fns.linear
 
+  -- i 从 0 起、定义域 d = step_count - 1，使首帧 t=0 → from、末帧硬编码 to，
+  -- 完整覆盖 [0, d]，消除原本 i=1 起步跳过 from 的首帧突变
+  -- step_count >= 2（见上 math.max(..., 2)），故 d >= 1 不会除零
   self.steps = {}
-  for i = 1, step_count do
+  for i = 0, step_count - 1 do
     local value
-    if i == step_count then
+    if i == step_count - 1 then
       value = to
     else
-      value = easing_fn(i, from, to - from, step_count)
+      value = easing_fn(i, from, to - from, step_count - 1)
     end
     if opts.int then
       value = math.floor(value + 0.5)

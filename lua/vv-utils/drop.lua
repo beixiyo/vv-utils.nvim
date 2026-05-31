@@ -41,24 +41,42 @@ local function shell_unescape(s)
   return (s:gsub('\\(.)', '%1'))
 end
 
+-- 把一个候选字符串规整成可 fs_stat 的绝对路径；非绝对路径返回 nil
+---@param s string
+---@return string?
+local function normalize_candidate(s)
+  if s:match('^file://') then
+    s = vim.uri_to_fname(s)
+  end
+  if not s:match('^[/~]') then return nil end
+  return (s:gsub('^~', vim.env.HOME or '~'))
+end
+
 ---@param raw string
 ---@return string?
 local function try_resolve_path(raw)
   raw = raw:gsub('^%s+', ''):gsub('%s+$', '')
   if raw == '' then return nil end
 
-  raw = strip_quotes(raw)
-  raw = shell_unescape(raw)
+  -- 候选按优先级：
+  --   1. 原始路径（Kitty 等原始解码终端，无 shell 转义，可含字面反斜杠）
+  --   2. strip_quotes + shell_unescape 后备（Ghostty/Alacritty 等 shell-转义终端）
+  -- 逐个 fs_stat，返回首个真实存在的，避免把合法的字面反斜杠误 strip 成错误路径
+  local candidates = { raw }
 
-  if raw:match('^file://') then
-    raw = vim.uri_to_fname(raw)
+  local unescaped = shell_unescape(strip_quotes(raw))
+  if unescaped ~= raw then
+    candidates[#candidates + 1] = unescaped
   end
 
-  if not raw:match('^[/~]') then return nil end
+  for _, cand in ipairs(candidates) do
+    local expanded = normalize_candidate(cand)
+    if expanded then
+      local stat = vim.uv.fs_stat(expanded)
+      if stat then return expanded end
+    end
+  end
 
-  local expanded = raw:gsub('^~', vim.env.HOME or '~')
-  local stat = vim.uv.fs_stat(expanded)
-  if stat then return expanded end
   return nil
 end
 

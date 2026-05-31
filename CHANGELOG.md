@@ -20,6 +20,9 @@
 
 ### Fixed
 
+- **format.apply_to_buffer：nvim_buf_set_lines 前判 modifiable，nomodifiable/只读 buffer 上不再抛 E21，改友好 WARN 返回**
+- **drop.try_resolve_path：先按原始路径 fs_stat、未命中再 shell_unescape 后备，不再误删 Kitty 等原始路径里的字面反斜杠**
+- **animate：缓动循环从 i=0 起（d=step_count-1），首帧等于 from，消除动画起步突变**
 - **fs.exists：改用 fs_lstat（不跟随软链），broken symlink 不再被判为不存在，rename/create/unique_dest 的冲突检查不再被越过而静默覆盖软链**
 - **fs.read_all：循环补读到读满/EOF，修复 fs_read 短读（>2GB / 网络 FS / 信号中断）时静默返回截断内容**
 - **fs.sync_buffers：`nvim_buf_set_name` 包 pcall，目标名已被其它 loaded buffer 占用（E95）时不再冒泡中断调用方的后续 UI 刷新**
