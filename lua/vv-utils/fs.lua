@@ -11,7 +11,9 @@ local function basename(p) return vim.fs.basename(p) end
 
 ---@param path string
 function M.exists(path)
-  return uv.fs_stat(path) ~= nil
+  -- 用 fs_lstat（不跟随软链），与 M.delete 一致：broken symlink 是真实存在的文件系统条目，
+  -- 必须被 rename/create_file/unique_dest 的冲突检查视为「已存在」，否则会静默覆盖软链。
+  return uv.fs_lstat(path) ~= nil
 end
 
 -- 把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）。
