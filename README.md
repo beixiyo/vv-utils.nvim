@@ -39,7 +39,8 @@
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
 | `vv-utils.bufdelete` | 删 buffer 不破坏窗口布局：`delete` / `all` / `other` / `smart` |
 | `vv-utils.editor` | `copy(text)` / `visual_range()` / `copy_path(opts?)` |
-| `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`） |
+| `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
+| `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
 | `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）：覆写 `vim.paste`，从 bracketed paste 中检测文件路径，内置默认 handler（Normal 模式自动 `:edit`），支持 `register(handler)` 扩展（如 vv-explorer 拖拽粘贴） |
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |

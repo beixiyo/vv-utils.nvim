@@ -6,7 +6,8 @@
 --   fs          fs 原语（mkdir_p / create_file / delete / rename / copy / unique_dest / sync_buffers）
 --   git         git status 索引 + porcelain 解析 + ignored 命中判断（异步）
 --   diagnostics 按路径聚合所有 loaded buffer 的 LSP 诊断计数
---   sys         系统集成（open_default 跨平台）
+--   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
+--   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
 --   help_panel  通用 keymap 帮助浮窗（反读 buffer keymap 按分类渲染）
 --   bufdelete   删除 buffer 不破坏窗口布局

@@ -4,6 +4,7 @@
 
 ### Added
 
+- **exec**：按文件类型解析执行命令（`vv-utils.exec.resolve(path, opts?)`）。优先级 **shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级**，取首个 `executable()` 的运行器，返回 `{cmd, runner}` 纯数据（无副作用，运行交给调用方）。内置 `sh/bash/zsh/fish · ts/tsx/mts/cts · js/mjs/cjs · py · lua · rb · pl · php` 默认；`opts.runners` 深合并可增减扩展名 / 改优先级，`opts.shebang=false` 关 shebang
 - **git.root / git.root_async**：探测 git 仓库根（rev-parse --show-toplevel），同步 + 异步两版
 - **timer.debounce / timer.throttle 增加 `cancel` 句柄**：现返回 `(wrapped, cancel)`（向后兼容，旧 `local f = debounce(...)` 行为不变）。两者内部创建常驻 uv timer，过去无对外 close 接口 → 反复创建却不关闭会泄漏 timer 句柄。`cancel()` 幂等 `stop`+`close`，供调用方在不再使用时释放（如 vv-explorer 过滤 prompt 关闭时）
 
@@ -15,6 +16,8 @@
 
 ### Changed
 
+- **sys.open_default：补错误处理 + 返回值**：`vim.ui.open` 失败（无可用 opener，如纯 headless / 无 GUI 的 SSH）时 `vim.notify` 报错而非静默吞错，并返回 `boolean ok`（向后兼容，旧调用忽略返回值即可）。文档明确语义：目录→系统文件管理器、文件→默认程序
+- **sys.open_default：niri 焦点跟随**：niri 默认丢弃应用的 xdg-activation 聚焦请求（如已开 Firefox 里开新标签不抢焦点）。`$NIRI_SOCKET` 存在时，打开后异步经 `xdg-mime` 解析默认处理程序、轮询 `niri msg --json windows` 按 app_id（标题含文件名优先）定位并 `focus-window` 聚焦回来；非 niri 环境完全无副作用
 - **help_panel：action 名 snake_case → 空格分隔**：渲染时自动将 `cd_to` 显示为 `cd to`，不影响 actions 表查表逻辑
 - **help_panel：`<C-X>` → `<C-x>` 归一化**：Neovim 对 Ctrl 键统一存大写，渲染时还原为小写（Ctrl 不区分大小写）；`<M->`/`<S->` 保持原样
 
