@@ -5,10 +5,14 @@
 --   local D = require('vv-utils.diagnostics')
 --   local by_path = D.collect_by_path()
 --   local sym = D.symbol_for(by_path['/abs/path.ts']) -- { glyph, hl } 或 nil
+--   local lines = D.format_range(0, 42)               -- 第 42 行的诊断文本（复制/发送用）
 
 local M = {}
 
 local SEV = vim.diagnostic.severity
+
+-- 文本标签（按 severity 数值索引，1=Error … 4=Hint），用于复制/发送场景
+local SEVERITY_LABELS = { 'Error', 'Warn', 'Info', 'Hint' }
 
 -- hl 名遵循 'VVDiag*'（默认与 DiagnosticError/Warn/Info/Hint link）
 -- 想换 hl / glyph 的调用方可直接自己写 symbol_for 替代本函数
@@ -37,6 +41,26 @@ function M.symbol_for(counts)
     end
   end
   return nil
+end
+
+-- 收集 buffer 指定行范围内的诊断，格式化为 "Label: message" 文本行
+-- 复制路径 / 发送到 tmux 面板等场景共用，避免各处重复 severity 映射 + 拼接逻辑
+---@param buf integer    buffer 号（0 = 当前）
+---@param l1 integer      起始行（1-based）
+---@param l2? integer     结束行（1-based），默认 = l1
+---@return string[]       每条诊断一行 "Label: message"；无诊断返回空表
+function M.format_range(buf, l1, l2)
+  l2 = l2 or l1
+  if l1 > l2 then l1, l2 = l2, l1 end
+
+  local out = {}
+  for lnum = l1, l2 do
+    for _, d in ipairs(vim.diagnostic.get(buf, { lnum = lnum - 1 })) do
+      local label = SEVERITY_LABELS[d.severity] or 'Unknown'
+      table.insert(out, label .. ': ' .. d.message)
+    end
+  end
+  return out
 end
 
 -- 聚合所有已加载 buffer 的诊断计数
