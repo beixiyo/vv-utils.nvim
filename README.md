@@ -41,7 +41,7 @@
 | `vv-utils.editor` | `copy(text)` / `visual_range()` / `copy_path(opts?)` |
 | `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
 | `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
-| `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）：覆写 `vim.paste`，从 bracketed paste 中检测文件路径，内置默认 handler（Normal 模式自动 `:edit`），支持 `register(handler)` 扩展（如 vv-explorer 拖拽粘贴） |
+| `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）。两条路统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste` 从 bracketed paste 检测路径（`pos=nil`，无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47 且脱 tmux）** 带落点坐标 + 拖拽事件（`pos={x,y,op}`）。`register(handler)` 签名 `fun(paths, pos)`；`on_drag(cb)` 订阅移动/离开（实时高亮用）；内置默认 handler（Normal 下 `:edit`）；`setup({ kitty_dnd=false })` 关协议 |
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
@@ -65,7 +65,7 @@ utils.yaml.parse(...)
 
 ```lua
 require('vv-utils').setup({
-  drop    = true,          -- 终端拖拽文件自动打开（覆写 vim.paste）
+  drop    = true,          -- 终端拖拽：粘贴检测 + kitty DnD 落点协议（覆写 vim.paste）
   bigfile = true,          -- 启用大文件保护
   format  = true,          -- 启用中英文排版命令（:VVAddSpaces / :VVCleanTrailing）
   -- 传 table 可透传子模块配置
