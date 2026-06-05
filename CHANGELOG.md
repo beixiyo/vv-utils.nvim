@@ -10,7 +10,7 @@
 
 - **fs.realpath**：把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）。`uv.fs_realpath` 解析所有中间符号链接；路径不存在时（已删除 / 父级回溯）解析「最长存在的祖先」再拼回剩余段，使已删文件与其 buffer name（解析形）仍可对齐；完全无法解析则退回 `vim.fs.normalize(fnamemodify(':p'))`。解决 `vim.fs.normalize` / `fnamemodify(':p')`（保留 symlink 形）与 `nvim_buf_get_name`（已解析真实路径）口径不一致导致的「同一文件两种路径串」漏命中
 
-- **drop**：终端拖拽路径检测 + handler 分发（`vv-utils.drop`）。覆写 `vim.paste`，从 bracketed paste 中检测绝对路径（`/` 或 `~` 开头），支持 shell-escaped / 带引号 / `file://` URI 格式。内置默认 handler：Normal 模式 + 普通 buffer 下自动 `:edit` 打开文件。`register(handler)` 允许外部插件扩展（如 vv-explorer 拖拽粘贴到目录）。已验证终端：Kitty (Linux/macOS)、Ghostty (Linux/GTK4)、Alacritty；已知限制：Ghostty macOS (AppKit) 拖拽不走 bracketed paste，无法拦截
+- **drop**：终端拖拽路径检测 + handler 分发（`vv-utils.drop`）。两条进入路径统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste`，从 bracketed paste 检测绝对路径（`/`/`~` 开头，支持 shell-escaped / 引号 / `file://`），`pos=nil`（无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47）** 带落点 cell 坐标 + 拖拽移动事件流，`pos={x,y,op}`。`setup()` 启动探测（`t=q`），支持才 opt-in（`t=a`），移动回握手 `t=m:o=1`，drop 后拉 `text/uri-list`；不支持（含 tmux 内，tmux 不透传入站 OSC）静默回退路径 ①。`register(handler)` 签名扩为 `fun(paths, pos)`；新增 `on_drag(cb)` 订阅移动/离开（实时高亮落点用）；`setup({ kitty_dnd=false })` 关协议。内置默认 handler：Normal + 普通 buffer 下 `:edit` 打开文件。已验证：Kitty (Linux/macOS，含 DnD 落点)、Ghostty (Linux/GTK4)、Alacritty；已知限制：Ghostty macOS (AppKit) 不走 bracketed paste 无法拦截；kitty 落点需 nvim 直跑 kitty（脱 tmux）
 
 - **animate**：通用补间动画引擎（`vv-utils.animate`）。`add(from, to, cb, opts?)` / `del(id)` — uv_timer 驱动，支持 id 去重、int 取整、5 种内置 easing（linear / outQuad / outCubic / inQuad / inOutQuad）、duration 双模式（step_ms / total_ms）
 
