@@ -3,7 +3,8 @@
 -- 成员：
 --   copy(text, opts?)      写系统剪贴板 + 可选通知
 --   visual_range()         当前可视选区的行号范围（"start-end"，非可视模式返 nil）
---   copy_path(opts?)       复制文件路径到剪贴板，支持相对/绝对、行号、可视范围
+--   build_path(opts?)      纯函数：按 opts 构建路径字符串，无副作用（不写剪贴板、不 notify）
+--   copy_path(opts?)       build_path + copy，便捷封装
 
 local path = require('vv-utils.path')
 
@@ -30,27 +31,17 @@ function M.visual_range()
   return string.format('%d-%d', s, e)
 end
 
----@class vv-utils.editor.CopyPathOpts
----@field path? string                              外部路径；不传则用当前 buffer (`expand('%:p')`)
----@field relative? boolean                         相对项目根目录（path.get_root()），默认 false（绝对路径）
----@field line? boolean|integer[]                   追加行号：true=自动（可视模式 visual_range / 否则光标行）；{l1,l2}=显式范围（用户命令场景，因为命令回调里 mode 已退出可视）
----@field notify? boolean                           是否 notify 反馈，默认 true
----@field title? string                             notify 的 title，默认 'copy'
+---@class vv-utils.editor.PathOpts
+---@field path? string         外部路径；不传则用当前 buffer (`expand('%:p')`)
+---@field relative? boolean    相对项目根目录（path.get_root()），默认 false（绝对路径）
+---@field line? boolean|integer[]  追加行号：true=自动（可视模式 visual_range / 否则光标行）；{l1,l2}=显式范围
 
---- 复制文件路径到系统剪贴板
+--- 纯函数：按 opts 构建路径字符串，无副作用
 ---
 --- 行号格式：单行 `path:42`，范围 `path:42-51`
----
---- 用法示例：
----   editor.copy_path()                              -- 当前 buffer 绝对路径
----   editor.copy_path({ line = true })               -- 当前 buffer + 行号（自动嗅探可视模式）
----   editor.copy_path({ line = { 18, 29 } })         -- 显式行号范围（用户命令场景）
----   editor.copy_path({ relative = true })           -- 相对项目根
----   editor.copy_path({ path = node.path })          -- 外部路径（树节点等）
----   editor.copy_path({ path = abs, notify = false }) -- 静默复制
----@param opts? vv-utils.editor.CopyPathOpts
----@return string|nil  实际写入剪贴板的内容；无路径时 nil
-function M.copy_path(opts)
+---@param opts? vv-utils.editor.PathOpts
+---@return string|nil  构建好的路径字符串；无路径时 nil
+function M.build_path(opts)
   opts = opts or {}
 
   local p
@@ -90,6 +81,20 @@ function M.copy_path(opts)
     end
   end
 
+  return p
+end
+
+---@class vv-utils.editor.CopyPathOpts : vv-utils.editor.PathOpts
+---@field notify? boolean   是否 notify 反馈，默认 true
+---@field title? string     notify 的 title，默认 'copy'
+
+--- build_path + copy，便捷封装
+---@param opts? vv-utils.editor.CopyPathOpts
+---@return string|nil
+function M.copy_path(opts)
+  opts = opts or {}
+  local p = M.build_path(opts)
+  if not p then return nil end
   M.copy(p, { silent = opts.notify == false, title = opts.title })
   return p
 end
