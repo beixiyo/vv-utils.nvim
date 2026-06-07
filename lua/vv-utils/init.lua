@@ -11,6 +11,7 @@
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
 --   help_panel  通用 keymap 帮助浮窗（反读 buffer keymap 按分类渲染）
 --   bufdelete   删除 buffer 不破坏窗口布局
+--   loading     通用 buffer 行内 loading 动画（spinner / dots / bounce，start(opts)→stop）
 --   editor      编辑器通用工具（剪贴板 copy / 可视选区 visual_range）
 --   drop        【副作用】终端拖拽路径检测 + handler 分发（覆写 vim.paste）
 --   bigfile     【副作用】大文件保护：filetype 探测 + 禁用重开销特性

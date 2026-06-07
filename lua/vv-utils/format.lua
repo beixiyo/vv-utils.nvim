@@ -77,6 +77,10 @@ function M.apply_to_buffer(transform, opts)
   end
 
   local lines = vim.api.nvim_buf_get_lines(0, from_row, to_row, false)
+  -- vim.fn.substitute() treats Lua strings with NUL bytes as VimL Blobs (E976); strip them
+  for i, line in ipairs(lines) do
+    lines[i] = line:gsub('%z', '')
+  end
   local original = table.concat(lines, '\n')
   local processed = transform(original)
 

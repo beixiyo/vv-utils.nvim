@@ -4,6 +4,8 @@
 
 ### Added
 
+- **loading**：通用 buffer 行内 loading 动画（`vv-utils.loading`）。`start(opts)` 在指定 buffer 行末尾以 virt_text 渲染滚动帧动画，返回幂等 `stop()`；每次 `start()` 创建独立 namespace，多实例互不干扰。内置三套帧 preset：`braille`（⠋⠙⠹…，默认）/ `dots`（⣾⣽⣻…）/ `bounce`（▏▎▍…）；`opts.frames` 可完全自定义。关键选项：`interval_ms`（默认 80ms）、`hl`（默认 `'Comment'`）、`hl_mode`（默认 `'combine'`，透明背景）、`prefix`、`virt_text_pos`
+
 - **exec**：按文件类型解析执行命令（`vv-utils.exec.resolve(path, opts?)`）。优先级 **shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级**，取首个 `executable()` 的运行器，返回 `{cmd, runner}` 纯数据（无副作用，运行交给调用方）。内置 `sh/bash/zsh/fish · ts/tsx/mts/cts · js/mjs/cjs · py · lua · rb · pl · php` 默认；`opts.runners` 深合并可增减扩展名 / 改优先级，`opts.shebang=false` 关 shebang
 - **git.root / git.root_async**：探测 git 仓库根（rev-parse --show-toplevel），同步 + 异步两版
 - **timer.debounce / timer.throttle 增加 `cancel` 句柄**：现返回 `(wrapped, cancel)`（向后兼容，旧 `local f = debounce(...)` 行为不变）。两者内部创建常驻 uv timer，过去无对外 close 接口 → 反复创建却不关闭会泄漏 timer 句柄。`cancel()` 幂等 `stop`+`close`，供调用方在不再使用时释放（如 vv-explorer 过滤 prompt 关闭时）
