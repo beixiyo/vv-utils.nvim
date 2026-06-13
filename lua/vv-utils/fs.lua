@@ -12,20 +12,20 @@ local function basename(p) return vim.fs.basename(p) end
 ---@param path string
 function M.exists(path)
   -- 用 fs_lstat（不跟随软链），与 M.delete 一致：broken symlink 是真实存在的文件系统条目，
-  -- 必须被 rename/create_file/unique_dest 的冲突检查视为「已存在」，否则会静默覆盖软链。
+  -- 必须被 rename/create_file/unique_dest 的冲突检查视为「已存在」，否则会静默覆盖软链
   return uv.fs_lstat(path) ~= nil
 end
 
--- 把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）。
+-- 把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）
 --
 -- 必要性：`vim.fs.normalize` / `fnamemodify(':p')` 只做字符串规整，不解析符号链接，
 -- 而 Vim 打开符号链接文件后 `nvim_buf_get_name` 返回的是已解析的真实路径。两套口径
--- 在有 symlink 时会得到「同一文件的两种路径串」，直接字符串相等比对会漏命中。
+-- 在有 symlink 时会得到「同一文件的两种路径串」，直接字符串相等比对会漏命中
 --
 -- 行为：路径存在 → `uv.fs_realpath`（解析所有中间 symlink）；
 --       路径不存在（如已删除、用于父级回溯）→ 解析「最长存在的祖先目录」后拼回剩余段，
 --       使「已删文件」与其 buffer name（解析形）仍可对齐；
---       完全无法解析 → 退回 `vim.fs.normalize(fnamemodify(':p'))`，保证总返回字符串。
+--       完全无法解析 → 退回 `vim.fs.normalize(fnamemodify(':p'))`，保证总返回字符串
 ---@param path string
 ---@return string
 function M.realpath(path)
@@ -130,7 +130,7 @@ function M.copy(src, dst)
   if src == dst then error('copy src == dst: ' .. src) end
 
   -- 防自包含递归：dst 落在 src 子树内（dst==src 已在上面拦）时，复制目录进自身会无限
-  -- 递归 src/dst/dst/... 直到写满磁盘 / 耗尽 inode。这里在创建任何目录前硬拦，保护所有调用方。
+  -- 递归 src/dst/dst/... 直到写满磁盘 / 耗尽 inode。这里在创建任何目录前硬拦，保护所有调用方
   if dst:sub(1, #src + 1) == src .. '/' then
     error('copy: dst 位于 src 子树内，拒绝（会无限递归）: ' .. dst .. ' ⊂ ' .. src)
   end
@@ -147,6 +147,15 @@ function M.copy(src, dst)
       if not name then break end
       M.copy(src .. '/' .. name, dst .. '/' .. name)
     end
+  elseif st.type == 'link' then
+    -- 软链照原样重建（不跟随）：lstat 已判定为 link，须复制「链接本身」而非其目标内容
+    -- 否则 fs_copyfile 会跟随软链——指向目录时报 EISDIR 整树失败，指向文件时把目标字节
+    -- 物化成普通文件，跨分区（EXDEV copy+delete 降级）会静默丢失软链语义
+    M.mkdir_p(dirname(dst))
+    local target, rerr = uv.fs_readlink(src)
+    if not target then error('readlink failed: ' .. src .. ' — ' .. tostring(rerr)) end
+    local ok, serr = uv.fs_symlink(target, dst)
+    if not ok then error('symlink failed: ' .. src .. ' → ' .. dst .. ' — ' .. tostring(serr)) end
   else
     M.mkdir_p(dirname(dst))
     local ok, err = uv.fs_copyfile(src, dst, { excl = true })
@@ -185,7 +194,7 @@ function M.read_all(path)
   local st = uv.fs_fstat(fd)
   if not st then uv.fs_close(fd); error('fstat failed: ' .. path) end
 
-  -- fs_read 允许短读（>2GB 文件 / 网络 / FUSE / 被信号中断），单次读会静默截断丢文件尾。
+  -- fs_read 允许短读（>2GB 文件 / 网络 / FUSE / 被信号中断），单次读会静默截断丢文件尾
   -- 循环按已读偏移补读，直到读满 st.size 或遇 EOF（返回空）
   local parts = {}
   local total = 0
@@ -200,7 +209,7 @@ function M.read_all(path)
   return table.concat(parts)
 end
 
--- 原子地把整个文件内容写入 path；父目录自动 mkdir_p。失败 error。
+-- 原子地把整个文件内容写入 path；父目录自动 mkdir_p。失败 error
 -- 先写临时文件再 rename，避免写入中途失败（磁盘满等）导致数据丢失
 ---@param path string
 ---@param content string
@@ -250,7 +259,7 @@ function M.sync_buffers(old, new)
 
       if target then
         -- nvim_buf_set_name 可能抛 E95（已存在同名 loaded buffer：幽灵 buffer / 软链重名 / 该名
-        -- 之前被打开过等）。用 pcall 兜住，避免异常冒泡中断调用方后续的 UI 刷新/聚焦。
+        -- 之前被打开过等）。用 pcall 兜住，避免异常冒泡中断调用方后续的 UI 刷新/聚焦
         if pcall(vim.api.nvim_buf_set_name, buf, target) then
           -- 打标 lua filetype；不 :e 避免丢 unsaved 状态
           pcall(vim.api.nvim_buf_call, buf, function() vim.cmd('silent! doautocmd BufFilePost') end)

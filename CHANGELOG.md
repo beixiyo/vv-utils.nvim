@@ -33,6 +33,9 @@
 - **fs.read_all：循环补读到读满/EOF，修复 fs_read 短读（>2GB / 网络 FS / 信号中断）时静默返回截断内容**
 - **fs.sync_buffers：`nvim_buf_set_name` 包 pcall，目标名已被其它 loaded buffer 占用（E95）时不再冒泡中断调用方的后续 UI 刷新**
 - **fs.copy：dst 位于 src 子树内时硬报错，杜绝复制目录进自身导致的无限递归（写满磁盘）**
+- **fs.copy：新增 `st.type == 'link'` 分支，软链照原样重建（`fs_readlink` + `fs_symlink`）而非跟随复制目标。修复递归复制含「指向目录的软链」子项时 `fs_copyfile` 报 EISDIR 整树失败、半拷贝残留的问题**
+- **fs.rename（EXDEV 降级）：跨分区移动/回收软链不再被物化成「目标字节的普通文件」**：原 copy+delete 降级走 `fs_copyfile` 跟随软链、把目标内容拷成普通文件再删原链，与同分区 `fs_rename`（保留软链）行为按文件系统边界静默分叉；现复用 fs.copy 的 link 分支，跨分区也保留软链及其（相对/绝对）目标
+- **help_panel：collect() 把未列入 `categories` 的孤儿 `cat` 重映射到 'Other'**：actions meta 可声明任意 cat，但渲染只遍历 `ordered_cats`，某 cat 仅出现在 meta、未在 `categories` 声明时整段 keymap 被静默丢弃（违反文档「未提及的分类归入 'Other'」契约）；现在插入前兜底到始终渲染的 'Other' 桶，`key_w` 也只计可见行
 - **timer.throttle：fn 抛错后 `running` 永久卡死、节流彻底失效**：`fn` 未 pcall 且在「启动复位 timer」之前同步调用，一旦抛错控制流逃逸 → 复位 timer 永不 `start`、`running` 永远停在 true，之后所有调用都被开头的 `if running then return` 挡掉。改为**先安排复位 timer 再调 `fn`**：fn 抛错仍向上传播（与原行为一致），但 `running` 必在 `limit` 毫秒后复位、节流自动恢复
 
 ### Added

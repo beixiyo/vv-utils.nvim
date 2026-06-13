@@ -60,8 +60,21 @@ local function collect(opts)
     local action = desc:match(pattern)
     if action then
       local meta = (opts.actions and opts.actions[action]) or { cat = 'Other', icon = '' }
-      by_cat[meta.cat] = by_cat[meta.cat] or {}
-      table.insert(by_cat[meta.cat], { lhs = m.lhs, action = action, icon = meta.icon or '' })
+      -- 兑现文档契约「未提及的分类归入 'Other'」：actions meta 可声明任意 cat，但渲染只遍历
+      -- ordered_cats（categories + extra_rows cats + 'Other'）。某 cat 仅出现在 actions meta、
+      -- 未列入 categories 时会被整段静默丢弃。这里在插入前把这类孤儿 cat 重映射到 'Other'
+      local cat = meta.cat or 'Other'
+
+      if opts.categories and cat ~= 'Other' then
+        local known = false
+        for _, c in ipairs(opts.categories) do
+          if c == cat then known = true break end
+        end
+        if not known then cat = 'Other' end
+      end
+
+      by_cat[cat] = by_cat[cat] or {}
+      table.insert(by_cat[cat], { lhs = m.lhs, action = action, icon = meta.icon or '' })
     end
   end
   for _, rows in pairs(by_cat) do
