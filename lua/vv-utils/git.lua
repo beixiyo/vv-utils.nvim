@@ -116,7 +116,7 @@ local HL_SPECS = {
   VVGitAdded     = { fg = '#81b88b' }, -- staged A：灰绿
   VVGitModified  = { fg = '#e2c08d' }, -- M：黄
   VVGitDeleted   = { fg = '#c74e39' }, -- D：红
-  VVGitRenamed   = { fg = '#73c991' }, -- R/C：亮绿
+  VVGitRenamed   = { fg = '#4ec9b0' }, -- R/C：青绿（与 Added 灰绿、Untracked 亮绿拉开区分）
   VVGitUntracked = { fg = '#73c991' }, -- ?：亮绿
   VVGitConflict  = { fg = '#e4676b', bold = true },
   VVGitIgnored   = { link = 'Comment' },
