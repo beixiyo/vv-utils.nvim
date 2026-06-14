@@ -38,7 +38,9 @@
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
 | `vv-utils.bufdelete` | 删 buffer 不破坏窗口布局：`delete` / `all` / `other` / `smart` |
-| `vv-utils.loading` | buffer 行内 loading 动画：`start(opts)` → `stop()`；内置 `presets.braille`（默认）/ `dots` / `bounce`；`hl_mode='combine'` 透明背景 |
+| `vv-utils.loading` | buffer 行内 loading 动画：`start(opts)` → `stop()`；纯帧计时器 `ticker({on_frame})`（只跑 timer + 循环帧、每帧回调当前帧字符**不渲染**，供帧要塞进调用方自己的多段 virt_text 场景）；内置 `presets.braille`（默认）/ `dots` / `bounce`；`hl_mode='combine'` 透明背景 |
+| `vv-utils.prompt` | 底部锚定双行浮动过滤框：`open(anchor_win, opts)` → `handle{close, redraw, set_busy, set_status}`；mode badge + `<S-Tab>` 切模式、placeholder、`timer.debounce` 防抖（支持 `int\|fun` 自适应）、光标锁、失焦取消；可选 spinner（`set_busy` push 模型，帧走 `loading.ticker`）/ `on_navigate`(C-n/C-p) / `on_open_in`(C-x/C-v)。vv-flow / vv-explorer 共用 |
+| `vv-utils.match` | 列表过滤命中判定（纯函数）：`compile(query, {mode, ignore_case})` → `(谓词, ok)`，编译一次复用；三模式 `fixed`（字面子串）/ `subseq`（子序列模糊）/ `regex`（vim 正则），**只判命中不打分不重排**（保住原有分组/顺序）；`next_mode` / `next_in` 模式轮换 |
 | `vv-utils.editor` | `copy(text)` / `visual_range()` / `copy_path(opts?)` |
 | `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
 | `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
