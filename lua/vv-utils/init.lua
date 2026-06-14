@@ -18,6 +18,7 @@
 --   drop        【副作用】终端拖拽路径检测 + handler 分发（覆写 vim.paste）
 --   bigfile     【副作用】大文件保护：filetype 探测 + 禁用重开销特性
 --   format      【副作用可选】中英文加空格 / 行尾清理（开启时注册 :VVAddSpaces / :VVCleanTrailing）
+--   scroll      跨窗口平滑滚动（基于 vv-utils.animate，支持 easing + 连按去重）
 --
 -- 用法：
 --   local vv = require('vv-utils')
@@ -39,14 +40,15 @@
 --   vv.format.add_spaces_around_english('你好world')
 
 ---@class vv-utils.Opts
----@field drop?    boolean  true=安装 vim.paste 拦截；缺省/false=不启用
----@field bigfile? boolean|vv-utils.bigfile.Opts  true=默认启用；table=启用并透传；缺省/false=不启用
----@field format?  boolean|vv-utils.format.Opts   true=默认启用；table=启用并透传；缺省/false=不启用
+---@field drop?    boolean|vv-utils.drop.Opts      true=安装 vim.paste 拦截；缺省/false=不启用
+---@field bigfile? boolean|vv-utils.bigfile.Opts   true=默认启用；table=启用并透传；缺省/false=不启用
+---@field format?  boolean|vv-utils.format.Opts    true=默认启用；table=启用并透传；缺省/false=不启用
+---@field scroll?  boolean|vv-utils.scroll.Opts    true=跨窗平滑滚动 + 鼠标滚轮；缺省/false=不启用
 
 local M = {}
 
 -- 列出所有「带可选 setup 副作用」的子模块；新增带副作用的模块只需在此追加
-local SETUPABLE = { 'drop', 'bigfile', 'format' }
+local SETUPABLE = { 'drop', 'bigfile', 'format', 'scroll' }
 
 ---@param opts? vv-utils.Opts
 function M.setup(opts)

@@ -158,6 +158,10 @@ function Animation:stop()
   end
   self.steps = nil
   self._step = nil
+  -- 自然结束 / 被抢占都统一从 active 摘除，不再等 GC（与 M.del 路径一致）
+  if active[self.id] == self then
+    active[self.id] = nil
+  end
 end
 
 ---@param from number
