@@ -9,6 +9,7 @@
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
+--   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
 --   help_panel  通用 keymap 帮助浮窗（反读 buffer keymap 按分类渲染）
 --   bufdelete   删除 buffer 不破坏窗口布局
