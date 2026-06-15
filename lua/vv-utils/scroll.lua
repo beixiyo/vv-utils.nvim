@@ -5,6 +5,7 @@
 --   local scroll = require('vv-utils.scroll')
 --   scroll.window(win_id, 5)   -- 向下 5 行
 --   scroll.window(win_id, -3)  -- 向上 3 行
+--   scroll.mouse('down')       -- 滚动鼠标所在窗口
 --
 -- 焦点策略：滚动一律通过 `nvim_win_call` 在目标窗上下文里执行 `normal! N<C-e>`，
 -- 全程不改全局 current win，从根本上避免跨窗连按时焦点卡在目标窗
@@ -31,7 +32,7 @@ local config = vim.deepcopy(defaults)
 ---@field easing?     string  缓动函数（linear/outQuad/outCubic/inQuad/inOutQuad） @default 'linear'
 ---@field step?       integer 键盘 <C-e>/<C-y> 无 count 前缀时每次滚动行数 @default 5
 ---@field frame_ms?   integer 逐行滚动的目标帧间隔；值越小越贴近原生快速滚动 @default 12
----@field mouse_step? integer 鼠标滚轮每次滚动行数（写入原生 mousescroll，0=不接管） @default 3
+---@field mouse_step? integer 鼠标滚轮每次滚动行数（0=不接管） @default 3
 
 function M.setup(opts)
   config = vim.tbl_deep_extend('force', vim.deepcopy(defaults), opts or {})
@@ -155,6 +156,15 @@ local function animation_duration(total)
   return math.min(config.duration, duration)
 end
 
+local function mouse_target_win()
+  local ok, pos = pcall(vim.fn.getmousepos)
+  if ok and pos and pos.winid and pos.winid ~= 0 and vim.api.nvim_win_is_valid(pos.winid) then
+    return pos.winid
+  end
+
+  return vim.api.nvim_get_current_win()
+end
+
 ---滚动指定窗口
 ---@param win_id integer  目标窗口
 ---@param lines integer   正数向下（C-e），负数向上（C-y）
@@ -223,16 +233,28 @@ function M.window(win_id, lines)
   timer:start(0, 0, tick)
 end
 
+---按鼠标滚轮方向滚动鼠标所在窗口
+---@param direction '"up"'|'"down"'
+---@param win_id? integer 显式目标窗口；不传时使用鼠标所在窗口
+---@return boolean handled 是否已接管滚动
+function M.mouse(direction, win_id)
+  local step = config.mouse_step or defaults.mouse_step
+  if step <= 0 then return false end
+
+  local target_win = win_id or mouse_target_win()
+  local lines = direction == 'up' and -step or step
+  M.window(target_win, lines)
+  return true
+end
+
 ---全局滚动键映射（键盘 C-e/C-y）
 function M._install_scroll_keymaps()
-  if scroll_keymaps_installed then return end
-  scroll_keymaps_installed = true
-
-  -- 鼠标滚轮交给原生 mousescroll：visual/insert 模式下用 normal! 会被踢出当前模式，
-  -- 而原生滚轮本就能在任意模式滚动鼠标所在窗，无需重映射
   if config.mouse_step and config.mouse_step > 0 then
     vim.opt.mousescroll = ('ver:%d,hor:6'):format(config.mouse_step)
   end
+
+  if scroll_keymaps_installed then return end
+  scroll_keymaps_installed = true
 
   -- 无 count → 默认 step 行；有 count（如 10<C-e>）→ 按 count
   local function count_lines()
@@ -247,6 +269,14 @@ function M._install_scroll_keymaps()
   vim.keymap.set({ 'n', 'x' }, '<C-y>', function()
     M.window(vim.api.nvim_get_current_win(), -count_lines())
   end, { desc = 'vv-scroll: scroll up' })
+
+  vim.keymap.set({ 'n', 'x', 'i' }, '<ScrollWheelDown>', function()
+    M.mouse('down')
+  end, { desc = 'vv-scroll: mouse scroll down' })
+
+  vim.keymap.set({ 'n', 'x', 'i' }, '<ScrollWheelUp>', function()
+    M.mouse('up')
+  end, { desc = 'vv-scroll: mouse scroll up' })
 end
 
 return M
