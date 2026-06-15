@@ -233,6 +233,42 @@ test('editor.copy_path: 无路径时返回 nil', function()
   assert(got == nil, '空 buffer 应返回 nil, 实际: ' .. tostring(got))
 end)
 
+-- 8. scroll.lua
+test('scroll.window: 滚动到目标 topline', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ frame_ms = 1, duration = 100, mouse_step = 3 })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 200 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+  vim.api.nvim_win_set_cursor(win, { 20, 0 })
+  vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+
+  scroll.window(win, 5)
+  local ok = vim.wait(1000, function()
+    return vim.fn.winsaveview().topline == 6
+  end, 5)
+
+  local view = vim.fn.winsaveview()
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(ok, '滚动未在 1000ms 内完成，当前 topline=' .. tostring(view.topline))
+  assert(view.topline == 6, '期望 topline=6，实际: ' .. tostring(view.topline))
+  assert(vim.o.mousescroll == 'ver:3,hor:6',
+    'mousescroll 应为 ver:3,hor:6，实际: ' .. vim.o.mousescroll)
+end)
+
 -- 输出结果
 print(string.rep('─', 50))
 print('vv-utils.nvim 变更验证结果')
