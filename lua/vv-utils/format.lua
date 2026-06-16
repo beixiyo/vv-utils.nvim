@@ -4,7 +4,7 @@
 --
 -- 纯函数：
 --   add_spaces_around_english(text)  中英文之间智能加空格
---   clean_prose(text)                散文：删行尾句号 + 闭合符遮挡的句号 + 行尾空白（跳代码围栏、不删 ？！）
+--   clean_prose(text)                散文：删行尾句号 + 闭合符遮挡的句号 + 行尾空白（代码围栏内只清注释行句号、不删 ？！）
 --   clean_code(text)                 代码：删行尾句号 + 行尾空白（字符串/缩进天然安全）
 --
 -- Buffer 副作用（Visual 有选区时只处理选区，否则处理全文）：
@@ -87,6 +87,24 @@ local function clean_one_line(line, puncts, peel_closers)
   -- 4) 复原闭合符
   for j = #closers, 1, -1 do line = line .. closers[j] end
   return line
+end
+
+local FENCED_COMMENT_PATTERNS = {
+  '^%s*#',
+  '^%s*//',
+  '^%s*%-%-',
+}
+
+-- Markdown 代码围栏常放终端输出 / 纯文本示例；只对明显注释行删句号，普通行仅清尾空白
+---@param line string
+---@param puncts string[]
+---@return string
+local function clean_fenced_code_line(line, puncts)
+  local trimmed = line:gsub('[ \t]+$', '')
+  for _, pattern in ipairs(FENCED_COMMENT_PATTERNS) do
+    if trimmed:match(pattern) then return clean_one_line(line, puncts, false) end
+  end
+  return trimmed
 end
 
 --- 中英文之间智能加空格（前缀 / 后缀符号会被推到外侧，保留 markdown 格式如 **bold**）
@@ -186,7 +204,7 @@ function M.clean_trailing(opts)
 }))
 end
 
---- 散文清理：跳过 ``` / ~~~ 代码围栏，对其余行做「仅句号 + 闭合符 + 行尾空白」清理
+--- 散文清理：``` / ~~~ 代码围栏内部只清注释行句号，其余行做「仅句号 + 闭合符 + 行尾空白」清理
 --- （批量安全：不删 ？！，避免误删问句 / 感叹句标题）
 ---@param text string
 ---@return string
@@ -196,7 +214,9 @@ function M.clean_prose(text)
   for i, line in ipairs(lines) do
     if line:match('^%s*```') or line:match('^%s*~~~') then
       in_code = not in_code
-    elseif not in_code then
+    elseif in_code then
+      lines[i] = clean_fenced_code_line(line, config.punct)
+    else
       lines[i] = clean_one_line(line, config.punct, true)
     end
   end
