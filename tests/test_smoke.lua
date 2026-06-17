@@ -234,6 +234,18 @@ test('editor.copy_path: 无路径时返回 nil', function()
 end)
 
 -- 8. scroll.lua
+test('scroll.setup: 默认滚动时长配置', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup()
+  local cfg = scroll.get_config()
+
+  assert(cfg.duration == 180, 'duration 默认应为 180，实际: ' .. tostring(cfg.duration))
+  assert(cfg.key_duration == 120, 'key_duration 默认应为 120，实际: ' .. tostring(cfg.key_duration))
+  assert(cfg.auto_duration == 108, 'auto_duration 默认应为 108，实际: ' .. tostring(cfg.auto_duration))
+  assert(cfg.auto_max_steps == 10, 'auto_max_steps 默认应为 10，实际: ' .. tostring(cfg.auto_max_steps))
+end)
+
 test('scroll.window: 滚动到目标 topline', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
@@ -269,10 +281,112 @@ test('scroll.window: 滚动到目标 topline', function()
     'mousescroll 应为 ver:3,hor:6，实际: ' .. vim.o.mousescroll)
 end)
 
-test('scroll.mouse: 鼠标滚轮进入平滑滚动映射', function()
+test('scroll.window: 手动滚动期间抑制自动跳转动画', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
-  scroll.setup({ frame_ms = 1, duration = 100, mouse_step = 4 })
+  scroll.setup({ frame_ms = 20, key_duration = 100, mouse_step = 3 })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 200 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+  vim.api.nvim_win_set_cursor(win, { 20, 0 })
+  vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+
+  scroll.window(win, 5)
+  assert(scroll._auto_suppressed(), '手动平滑滚动期间应抑制 WinScrolled 自动跳转')
+
+  local ok = vim.wait(1000, function()
+    return vim.fn.winsaveview().topline == 6 and not scroll._auto_suppressed()
+  end, 5)
+
+  local view = vim.fn.winsaveview()
+  local suppressed = scroll._auto_suppressed()
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(ok, '手动滚动结束后 suppression 应恢复，topline=' .. view.topline .. ', suppressed=' .. tostring(suppressed))
+end)
+
+test('scroll.window: key_duration 可独立限制键盘动画时长', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ frame_ms = 100, duration = 900, key_duration = 5, mouse_step = 3 })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 200 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+  vim.api.nvim_win_set_cursor(win, { 20, 0 })
+  vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+
+  scroll.window(win, 10)
+  local ok = vim.wait(250, function()
+    return vim.fn.winsaveview().topline == 11
+  end, 5)
+
+  local view = vim.fn.winsaveview()
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(ok, 'key_duration 未在 250ms 内限制动画时长，当前 topline=' .. tostring(view.topline))
+end)
+
+test('scroll.mouse: 默认鼠标原生，不注册平滑滚轮映射', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ mouse_step = 4 })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 200 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+  vim.api.nvim_win_set_cursor(win, { 20, 0 })
+  vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+
+  local down_map = vim.fn.maparg('<ScrollWheelDown>', 'n', false, true)
+  assert(not down_map or down_map.desc ~= 'vv-scroll: mouse scroll down',
+    '默认 native 不应注册 ScrollWheelDown 平滑滚动映射')
+
+  scroll.mouse('down', win)
+  local view = vim.fn.winsaveview()
+
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(view.topline == 5, '期望 topline=5，实际: ' .. tostring(view.topline))
+  assert(vim.o.mousescroll == 'ver:4,hor:6',
+    'mousescroll 应为 ver:4,hor:6，实际: ' .. vim.o.mousescroll)
+end)
+
+test('scroll.mouse: smooth 模式注册滚轮映射', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ mouse = 'smooth', frame_ms = 1, duration = 100, mouse_step = 4 })
 
   local win = vim.api.nvim_get_current_win()
   local prev_buf = vim.api.nvim_win_get_buf(win)
@@ -291,7 +405,7 @@ test('scroll.mouse: 鼠标滚轮进入平滑滚动映射', function()
 
   local down_map = vim.fn.maparg('<ScrollWheelDown>', 'n', false, true)
   assert(down_map and down_map.desc == 'vv-scroll: mouse scroll down',
-    '应注册 ScrollWheelDown 平滑滚动映射')
+    'smooth 模式应注册 ScrollWheelDown 平滑滚动映射')
 
   vim.api.nvim_feedkeys(
     vim.api.nvim_replace_termcodes('<ScrollWheelDown>', true, false, true),
@@ -307,16 +421,24 @@ test('scroll.mouse: 鼠标滚轮进入平滑滚动映射', function()
   vim.api.nvim_win_set_buf(win, prev_buf)
   vim.api.nvim_buf_delete(buf, { force = true })
 
-  assert(ok, '鼠标滚轮未在 1000ms 内完成，当前 topline=' .. tostring(view.topline))
+  assert(ok, 'smooth 鼠标滚轮未在 1000ms 内完成，当前 topline=' .. tostring(view.topline))
   assert(view.topline == 5, '期望 topline=5，实际: ' .. tostring(view.topline))
-  assert(vim.o.mousescroll == 'ver:4,hor:6',
-    'mousescroll 应为 ver:4,hor:6，实际: ' .. vim.o.mousescroll)
+end)
+
+test('scroll.mouse: native 模式会移除 vv-scroll 鼠标映射', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ mouse = 'native', mouse_step = 4 })
+
+  local down_map = vim.fn.maparg('<ScrollWheelDown>', 'n', false, true)
+  assert(not down_map or down_map.desc ~= 'vv-scroll: mouse scroll down',
+    'native 模式应移除 ScrollWheelDown 平滑滚动映射')
 end)
 
 test('scroll.mouse: 滚动鼠标所在窗口而非焦点窗口', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
-  scroll.setup({ frame_ms = 1, duration = 100, mouse_step = 4 })
+  scroll.setup({ mouse_step = 4 })
 
   local original_getmousepos = vim.fn.getmousepos
   local focus_win = vim.api.nvim_get_current_win()
@@ -352,12 +474,6 @@ test('scroll.mouse: 滚动鼠标所在窗口而非焦点窗口', function()
   end
 
   scroll.mouse('down')
-  local ok = vim.wait(1000, function()
-    return vim.api.nvim_win_call(target_win, function()
-      return vim.fn.winsaveview().topline == 5
-    end)
-  end, 5)
-
   local focus_topline = vim.api.nvim_win_call(focus_win, function()
     return vim.fn.winsaveview().topline
   end)
@@ -372,9 +488,46 @@ test('scroll.mouse: 滚动鼠标所在窗口而非焦点窗口', function()
   vim.api.nvim_buf_delete(focus_buf, { force = true })
   vim.api.nvim_buf_delete(target_buf, { force = true })
 
-  assert(ok, '鼠标所在窗口未在 1000ms 内完成，当前 topline=' .. tostring(target_topline))
   assert(target_topline == 5, '鼠标所在窗口期望 topline=5，实际: ' .. tostring(target_topline))
   assert(focus_topline == 1, '焦点窗口不应滚动，实际 topline=' .. tostring(focus_topline))
+end)
+
+test('scroll.auto: auto_duration 会压缩自动跳转分步预算', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+
+  scroll.setup({
+    frame_ms = 20,
+    duration = 900,
+    auto_duration = 40,
+    auto = true,
+    auto_min_lines = 2,
+    auto_max_steps = 60,
+  })
+  assert(scroll._auto_step_count(240) == 3,
+    'auto_duration=40/frame_ms=20 时大跳转应拆 3 步，实际: ' .. scroll._auto_step_count(240))
+
+  scroll.setup({
+    frame_ms = 20,
+    duration = 900,
+    auto_duration = 200,
+    auto = true,
+    auto_min_lines = 2,
+    auto_max_steps = 60,
+  })
+  assert(scroll._auto_step_count(240) == 11,
+    'auto_duration=200/frame_ms=20 时大跳转应拆 11 步，实际: ' .. scroll._auto_step_count(240))
+
+  scroll.setup({
+    frame_ms = 20,
+    duration = 900,
+    auto_duration = 200,
+    auto = true,
+    auto_min_lines = 2,
+    auto_max_steps = 5,
+  })
+  assert(scroll._auto_step_count(240) == 5,
+    'auto_max_steps 应继续限制分步数，实际: ' .. scroll._auto_step_count(240))
 end)
 
 -- 输出结果

@@ -43,7 +43,7 @@
 ---@field drop?    boolean|vv-utils.drop.Opts      true=安装 vim.paste 拦截；缺省/false=不启用
 ---@field bigfile? boolean|vv-utils.bigfile.Opts   true=默认启用；table=启用并透传；缺省/false=不启用
 ---@field format?  boolean|vv-utils.format.Opts    true=默认启用；table=启用并透传；缺省/false=不启用
----@field scroll?  boolean|vv-utils.scroll.Opts    true=跨窗平滑滚动 + 鼠标滚轮；缺省/false=不启用
+---@field scroll?  boolean|vv-utils.scroll.Opts    true=键盘滚动和视口跳转动画；table=启用并透传配置；缺省/false=不启用
 
 local M = {}
 

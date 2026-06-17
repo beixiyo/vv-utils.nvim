@@ -48,7 +48,7 @@
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
-| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)`）|
+| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
 
 ## 引用方式
 
@@ -72,6 +72,14 @@ require('vv-utils').setup({
   drop    = true,          -- 终端拖拽：粘贴检测 + kitty DnD 落点协议（覆写 vim.paste）
   bigfile = true,          -- 启用大文件保护
   format  = true,          -- 启用中英文排版命令（:VVAddSpaces / :VVCleanTrailing）
+  scroll  = {
+    duration = 180,        -- 默认动画上限（ms）
+    key_duration = 120,    -- <C-e>/<C-y> 上限
+    auto_duration = 108,   -- gg/G/搜索等跳转上限
+    auto_max_steps = 10,   -- 自动跳转最大分步数；实际还会受 auto_duration/frame_ms 约束
+    frame_ms = 12,         -- 距离较短时按帧间隔缩短动画
+    mouse = 'native',      -- 鼠标默认走原生滚动；可设 'smooth'
+  },
   -- 传 table 可透传子模块配置
   -- bigfile = { size_threshold = 1024 * 500 },
 })

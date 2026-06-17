@@ -17,10 +17,16 @@ local M = {}
 
 local defaults = {
   enabled = true,
-  duration = 280,
+  auto = true,
+  auto_min_lines = 4,
+  auto_max_steps = 10,
+  duration = 180,
+  key_duration = 120,
+  auto_duration = 108,
   easing = 'linear',
   step = 5,
   frame_ms = 12,
+  mouse = 'native',
   mouse_step = 3,
 }
 
@@ -28,10 +34,16 @@ local config = vim.deepcopy(defaults)
 
 ---@class vv-utils.scroll.Opts
 ---@field enabled?    boolean 全局开关；false=走原生跳转 @default true
----@field duration?   integer 单次动画最长持续时间（ms） @default 280
+---@field auto?       boolean 自动监听 WinScrolled，处理 gg/G/搜索等跳转动画 @default true
+---@field auto_min_lines? integer 自动动画最小滚动距离，避免鼠标小步滚动被接管 @default 4
+---@field auto_max_steps? integer 自动动画最大分步数，避免大跳转产生过多 timer @default 10
+---@field duration?   integer 默认动画最长持续时间（ms） @default 180
+---@field key_duration? integer 键盘滚动动画最长持续时间（ms） @default 120
+---@field auto_duration? integer gg/G/搜索等自动跳转动画最长持续时间（ms） @default 108
 ---@field easing?     string  缓动函数（linear/outQuad/outCubic/inQuad/inOutQuad） @default 'linear'
 ---@field step?       integer 键盘 <C-e>/<C-y> 无 count 前缀时每次滚动行数 @default 5
 ---@field frame_ms?   integer 逐行滚动的目标帧间隔；值越小越贴近原生快速滚动 @default 12
+---@field mouse?      '"native"'|'"smooth"' 鼠标滚轮策略：native=不接管，smooth=映射到平滑滚动 @default 'native'
 ---@field mouse_step? integer 鼠标滚轮每次滚动行数（0=不接管） @default 3
 
 function M.setup(opts)
@@ -46,8 +58,13 @@ end
 -- 每个窗口独立 seq，防止不同窗口互相取消
 local win_seq = {}
 local win_timer = {}
+local auto_state = {}
+local auto_busy = {}
+local manual_scroll_count = 0
+local manual_suppress_until = 0
 
 local scroll_keymaps_installed = false
+local augroup
 
 local function close_timer(timer)
   if not timer then return end
@@ -68,6 +85,14 @@ local function stop_scroll(win_id, seq)
   if win_timer[win_id] == state then
     win_timer[win_id] = nil
   end
+  if state.manual then
+    manual_scroll_count = math.max(0, manual_scroll_count - 1)
+    manual_suppress_until = uv.now() + math.max(40, (config.frame_ms or defaults.frame_ms) * 3)
+  end
+end
+
+local function round(value)
+  return math.floor(value + 0.5)
 end
 
 -- 在目标窗上下文里同步滚 N 行；不改全局 current win
@@ -150,10 +175,33 @@ local function build_intervals(total, duration, easing)
   return intervals
 end
 
-local function animation_duration(total)
+local function duration_limit(name)
+  local value = config[name]
+  if type(value) == 'number' then
+    return math.max(0, value)
+  end
+
+  local fallback = config.duration or defaults.duration
+  return math.max(0, fallback)
+end
+
+local function animation_duration(total, limit)
   local frame_ms = math.max(1, config.frame_ms or defaults.frame_ms)
   local duration = frame_ms * math.max(total - 1, 1)
-  return math.min(config.duration, duration)
+  return math.min(limit, duration)
+end
+
+local function auto_suppressed()
+  return manual_scroll_count > 0 or uv.now() < manual_suppress_until
+end
+
+function M._auto_suppressed()
+  return auto_suppressed()
+end
+
+local function step_limit_for_duration(limit)
+  local frame_ms = math.max(1, config.frame_ms or defaults.frame_ms)
+  return math.max(1, math.floor(limit / frame_ms) + 1)
 end
 
 local function mouse_target_win()
@@ -163,6 +211,40 @@ local function mouse_target_win()
   end
 
   return vim.api.nvim_get_current_win()
+end
+
+local function capture_state(win_id)
+  if not win_id or not vim.api.nvim_win_is_valid(win_id) then return nil end
+
+  local ok, state = pcall(vim.api.nvim_win_call, win_id, function()
+    return {
+      buf_id = vim.api.nvim_get_current_buf(),
+      win_id = win_id,
+      view = vim.fn.winsaveview(),
+      cursor = { line = vim.fn.line('.'), virtcol = vim.fn.virtcol('.') },
+      scrolloff = vim.wo.scrolloff,
+      virtualedit = vim.wo.virtualedit,
+    }
+  end)
+
+  return ok and state or nil
+end
+
+local function track_state(win_id)
+  local state = capture_state(win_id or vim.api.nvim_get_current_win())
+  if state then
+    auto_state[state.win_id] = state
+  end
+end
+
+local function track_state_partial(win_id)
+  local state = auto_state[win_id or vim.api.nvim_get_current_win()]
+  if not state or auto_busy[state.win_id] then return end
+
+  local fresh = capture_state(state.win_id)
+  if not fresh then return end
+
+  state.cursor = fresh.cursor
 end
 
 ---滚动指定窗口
@@ -177,6 +259,7 @@ function M.window(win_id, lines)
   -- Neovide 自带 GPU 合成动画；或全局关闭时 → 原生跳转
   if vim.g.neovide or not config.enabled then
     scroll_instant(win_id, lines)
+    track_state(win_id)
     return
   end
 
@@ -193,13 +276,15 @@ function M.window(win_id, lines)
   local my_seq = win_seq[win_id]
 
   -- duration 按距离缩放：小跳快，大跳沿用默认
-  local anim_duration = animation_duration(total)
+  local anim_duration = animation_duration(total, duration_limit('key_duration'))
   local intervals = build_intervals(total, anim_duration, config.easing)
   local key = direction and '\5' or '\25'
   local scrolled = 0
   local timer = assert(uv.new_timer())
 
-  win_timer[win_id] = { seq = my_seq, timer = timer }
+  manual_scroll_count = manual_scroll_count + 1
+  manual_suppress_until = uv.now() + math.max(40, (config.frame_ms or defaults.frame_ms) * 3)
+  win_timer[win_id] = { seq = my_seq, timer = timer, manual = true }
 
   local tick
   tick = function()
@@ -218,6 +303,8 @@ function M.window(win_id, lines)
         stop_scroll(win_id, my_seq)
         return
       end
+      manual_suppress_until = uv.now() + math.max(40, (config.frame_ms or defaults.frame_ms) * 3)
+      track_state(win_id)
 
       scrolled = scrolled + 1
       if scrolled >= total then
@@ -233,6 +320,169 @@ function M.window(win_id, lines)
   timer:start(0, 0, tick)
 end
 
+local function build_subscrolls(total, max_steps)
+  local steps = math.min(total, math.max(1, max_steps or defaults.auto_max_steps))
+  local chunks = {}
+
+  for i = 1, steps do
+    local current = math.floor(i * total / steps)
+    local previous = math.floor((i - 1) * total / steps)
+    chunks[i] = math.max(1, current - previous)
+  end
+
+  return chunks
+end
+
+function M._auto_step_count(total)
+  if total <= 0 then return 0 end
+
+  local limit = duration_limit('auto_duration')
+  local max_steps = math.min(
+    config.auto_max_steps or defaults.auto_max_steps,
+    step_limit_for_duration(limit)
+  )
+
+  return math.min(total, math.max(1, max_steps))
+end
+
+local function set_intermediate_cursor(from_state, to_state, step, step_count)
+  local progress = step_count <= 0 and 1 or (step / step_count)
+  local line = round(from_state.cursor.line + (to_state.cursor.line - from_state.cursor.line) * progress)
+  local virtcol = round(from_state.cursor.virtcol + (to_state.cursor.virtcol - from_state.cursor.virtcol) * progress)
+  local top, bottom = vim.fn.line('w0'), vim.fn.line('w$')
+  line = math.max(top, math.min(line, bottom))
+
+  local col = vim.fn.virtcol2col(0, line, virtcol)
+  local line_end = vim.fn.virtcol({ line, '$' })
+  if line_end <= virtcol then
+    col = col + virtcol - line_end + 1
+  end
+
+  pcall(vim.api.nvim_win_set_cursor, 0, { line, math.max(0, col - 1) })
+end
+
+local function restore_scroll_options(state)
+  vim.wo.scrolloff = state.scrolloff
+  vim.wo.virtualedit = state.virtualedit
+end
+
+local function finish_auto_scroll(win_id, to_state)
+  if vim.api.nvim_win_is_valid(win_id) then
+    pcall(vim.api.nvim_win_call, win_id, function()
+      vim.fn.winrestview(to_state.view)
+      restore_scroll_options(to_state)
+    end)
+    track_state(win_id)
+  end
+
+  auto_busy[win_id] = nil
+end
+
+local function start_auto_scroll(from_state, to_state)
+  local win_id = to_state.win_id
+  if not vim.api.nvim_win_is_valid(win_id) then return end
+
+  local total = math.abs(to_state.view.topline - from_state.view.topline)
+  if total < math.max(1, config.auto_min_lines or defaults.auto_min_lines) then
+    auto_state[win_id] = to_state
+    return
+  end
+
+  stop_scroll(win_id)
+  auto_busy[win_id] = true
+
+  local limit = duration_limit('auto_duration')
+  local chunks = build_subscrolls(total, M._auto_step_count(total))
+  local step_count = #chunks
+  local duration = animation_duration(step_count, limit)
+  local intervals = build_intervals(step_count, duration, config.easing)
+  local key = from_state.view.topline < to_state.view.topline and '\5' or '\25'
+  local step = 0
+  local timer = assert(uv.new_timer())
+
+  local ok = pcall(vim.api.nvim_win_call, win_id, function()
+    vim.wo.scrolloff = 0
+    vim.wo.virtualedit = 'all'
+    vim.fn.winrestview(from_state.view)
+    track_state(win_id)
+  end)
+  if not ok then
+    close_timer(timer)
+    auto_busy[win_id] = nil
+    return
+  end
+
+  local tick
+  tick = function()
+    vim.schedule(function()
+      if not auto_busy[win_id] or not vim.api.nvim_win_is_valid(win_id) then
+        close_timer(timer)
+        auto_busy[win_id] = nil
+        return
+      end
+
+      step = step + 1
+      local chunk = chunks[step]
+      if not chunk then
+        close_timer(timer)
+        finish_auto_scroll(win_id, to_state)
+        return
+      end
+
+      local scrolled = scroll_lines(win_id, chunk, key)
+      if not scrolled then
+        close_timer(timer)
+        finish_auto_scroll(win_id, to_state)
+        return
+      end
+
+      pcall(vim.api.nvim_win_call, win_id, function()
+        set_intermediate_cursor(from_state, to_state, step, step_count)
+      end)
+      track_state(win_id)
+
+      if step >= step_count then
+        close_timer(timer)
+        finish_auto_scroll(win_id, to_state)
+        return
+      end
+
+      local interval = intervals[step] or (config.frame_ms or defaults.frame_ms)
+      timer:start(interval, 0, tick)
+    end)
+  end
+
+  timer:start(0, 0, tick)
+end
+
+local function on_win_scrolled(args)
+  if not config.enabled or not config.auto or vim.g.neovide then return end
+
+  local win_id = tonumber(args.match) or vim.api.nvim_get_current_win()
+  if not vim.api.nvim_win_is_valid(win_id) then return end
+
+  local new_state = capture_state(win_id)
+  if not new_state then return end
+
+  if auto_busy[win_id] then
+    auto_state[win_id] = new_state
+    return
+  end
+
+  if auto_suppressed() then
+    auto_state[win_id] = new_state
+    return
+  end
+
+  local prev_state = auto_state[win_id]
+  auto_state[win_id] = new_state
+  if not prev_state then return end
+  if prev_state.buf_id ~= new_state.buf_id then return end
+  if prev_state.view.topline == new_state.view.topline then return end
+
+  start_auto_scroll(prev_state, new_state)
+end
+
 ---按鼠标滚轮方向滚动鼠标所在窗口
 ---@param direction '"up"'|'"down"'
 ---@param win_id? integer 显式目标窗口；不传时使用鼠标所在窗口
@@ -243,8 +493,82 @@ function M.mouse(direction, win_id)
 
   local target_win = win_id or mouse_target_win()
   local lines = direction == 'up' and -step or step
-  M.window(target_win, lines)
+
+  if config.mouse == 'smooth' and not vim.g.neovide and config.enabled then
+    M.window(target_win, lines)
+  else
+    scroll_instant(target_win, lines)
+    track_state(target_win)
+  end
+
   return true
+end
+
+local mouse_modes = { 'n', 'x', 'i' }
+local mouse_keys = {
+  { lhs = '<ScrollWheelDown>', dir = 'down', desc = 'vv-scroll: mouse scroll down' },
+  { lhs = '<ScrollWheelUp>', dir = 'up', desc = 'vv-scroll: mouse scroll up' },
+}
+
+local function del_mouse_keymap(mode, lhs)
+  local map = vim.fn.maparg(lhs, mode, false, true)
+  if map and map.desc and tostring(map.desc):match('^vv%-scroll: mouse') then
+    pcall(vim.keymap.del, mode, lhs)
+  end
+end
+
+local function sync_mouse_keymaps()
+  if config.mouse ~= 'smooth' then
+    for _, key in ipairs(mouse_keys) do
+      for _, mode in ipairs(mouse_modes) do
+        del_mouse_keymap(mode, key.lhs)
+      end
+    end
+    return
+  end
+
+  for _, key in ipairs(mouse_keys) do
+    vim.keymap.set(mouse_modes, key.lhs, function()
+      M.mouse(key.dir)
+    end, { desc = key.desc })
+  end
+end
+
+local function install_autocmds()
+  augroup = vim.api.nvim_create_augroup('VVUtilsScroll', { clear = true })
+
+  vim.api.nvim_create_autocmd('WinScrolled', {
+    group = augroup,
+    callback = on_win_scrolled,
+    desc = 'vv-scroll: animate viewport jumps',
+  })
+
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'WinEnter' }, {
+    group = augroup,
+    callback = function()
+      vim.schedule(function()
+        if vim.api.nvim_get_current_win() then
+          track_state(vim.api.nvim_get_current_win())
+        end
+      end)
+    end,
+    desc = 'vv-scroll: track viewport state',
+  })
+
+  vim.api.nvim_create_autocmd('CursorMoved', {
+    group = augroup,
+    callback = function()
+      local win_id = vim.api.nvim_get_current_win()
+      vim.schedule(function()
+        if vim.api.nvim_win_is_valid(win_id) then
+          track_state_partial(win_id)
+        end
+      end)
+    end,
+    desc = 'vv-scroll: track cursor for viewport animation',
+  })
+
+  track_state(vim.api.nvim_get_current_win())
 end
 
 ---全局滚动键映射（键盘 C-e/C-y）
@@ -252,6 +576,9 @@ function M._install_scroll_keymaps()
   if config.mouse_step and config.mouse_step > 0 then
     vim.opt.mousescroll = ('ver:%d,hor:6'):format(config.mouse_step)
   end
+
+  sync_mouse_keymaps()
+  install_autocmds()
 
   if scroll_keymaps_installed then return end
   scroll_keymaps_installed = true
@@ -269,14 +596,6 @@ function M._install_scroll_keymaps()
   vim.keymap.set({ 'n', 'x' }, '<C-y>', function()
     M.window(vim.api.nvim_get_current_win(), -count_lines())
   end, { desc = 'vv-scroll: scroll up' })
-
-  vim.keymap.set({ 'n', 'x', 'i' }, '<ScrollWheelDown>', function()
-    M.mouse('down')
-  end, { desc = 'vv-scroll: mouse scroll down' })
-
-  vim.keymap.set({ 'n', 'x', 'i' }, '<ScrollWheelUp>', function()
-    M.mouse('up')
-  end, { desc = 'vv-scroll: mouse scroll up' })
 end
 
 return M
