@@ -76,9 +76,11 @@ eq('clean 闭合符无句号不变', C('**加粗**'), '**加粗**')
 eq('clean 闭合符前中间句号保留', C('A。B**'), 'A。B**')
 eq('clean 多行含闭合符', C('一。**\n二`x`。\n三'), '一**\n二`x`\n三')
 
--- ── clean_prose（批量散文：跳代码围栏 + 仅删句号，不删 ？！）──────────────────
+-- ── clean_prose（批量散文：代码围栏内只清注释行句号；围栏外仅删句号，不删 ？！）──
 local PR = F.clean_prose
-eq('prose 跳过代码块', PR('文本。\n```\n代码。\n```\n结尾。'), '文本\n```\n代码。\n```\n结尾')
+eq('prose 代码块普通文本保留句号', PR('文本。\n```\n代码。\n```\n结尾。'), '文本\n```\n代码。\n```\n结尾')
+eq('prose yaml 代码块注释删句号', PR('```yaml\n  # 注释。\n```'), '```yaml\n  # 注释\n```')
+eq('prose 代码块字符串句号保留', PR('```ts\nconst s = "完成。"\n```'), '```ts\nconst s = "完成。"\n```')
 eq('prose 不删问号', PR('如何调试？\n说明。'), '如何调试？\n说明')
 eq('prose 闭合符句号', PR('**重点。**'), '**重点**')
 eq('prose 叹号保留', PR('注意！\n完成。'), '注意！\n完成')
@@ -104,6 +106,14 @@ do  -- 散文 buffer：删句号 + 闭合符
   local o = run_clean_trailing('markdown', { '标题。', '**重点。**' })
   eq('ct 散文 删句号', o[1], '标题')
   eq('ct 散文 闭合符', o[2], '**重点**')
+end
+do  -- Markdown fenced code：围栏内部只清注释行句号
+  local o = run_clean_trailing('markdown', {
+    '```yaml',
+    '  # 注释。',
+    '```',
+  })
+  eq('ct markdown yaml 围栏注释删句号', o[2], '  # 注释')
 end
 do  -- force_full：代码 buffer 也强制全量（:VVCleanTrailing! 的逃生舱）
   local o = run_clean_trailing('typescript', { '注释。' }, { force_full = true })
