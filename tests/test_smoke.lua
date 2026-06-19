@@ -530,6 +530,18 @@ test('scroll.auto: auto_duration 会压缩自动跳转分步预算', function()
     'auto_max_steps 应继续限制分步数，实际: ' .. scroll._auto_step_count(240))
 end)
 
+test('scroll.auto: scrollbind 窗口跳过自动动画', function()
+  local src = table.concat(vim.fn.readfile(plugin_root .. '/lua/vv-utils/scroll.lua'), '\n')
+  local guard_at = src:find("nvim_get_option_value%('scrollbind'", 1)
+  local busy_at = src:find('if auto_busy%[win_id%] then', 1)
+
+  assert(guard_at, 'WinScrolled handler 应检查 scrollbind')
+  assert(busy_at and guard_at < busy_at,
+    'scrollbind guard 必须早于 auto_busy/start_auto_scroll 分支')
+  assert(src:find('auto_state%[win_id%]%s*=%s*new_state', guard_at),
+    '跳过自动动画前仍应更新 auto_state，避免状态滞后')
+end)
+
 -- 输出结果
 print(string.rep('─', 50))
 print('vv-utils.nvim 变更验证结果')

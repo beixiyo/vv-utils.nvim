@@ -464,6 +464,13 @@ local function on_win_scrolled(args)
   local new_state = capture_state(win_id)
   if not new_state then return end
 
+  -- scrollbind 窗口由 Neovim 负责和同组窗口同步。这里再把一次滚动拆成
+  -- 自动动画，会和绑定同步互相抢 viewport，典型表现是 diff 双栏鼠标滚动时上下拉扯
+  if vim.api.nvim_get_option_value('scrollbind', { win = win_id }) then
+    auto_state[win_id] = new_state
+    return
+  end
+
   if auto_busy[win_id] then
     auto_state[win_id] = new_state
     return
