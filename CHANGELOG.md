@@ -4,6 +4,8 @@
 
 ### Added
 
+- **mouse**：新增 `block_visual_drag(buf)`，给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual。补 buffer-local Nop 的盲区——跨窗口「从别窗点进面板再拖 / 多击」时按下走源窗口 keymap，buffer-local 拦不住，守卫一旦进 visual 即退回 normal。caller：vv-explorer / vv-git（实现细节见模块注释）
+
 - **bigfile.is_big**：把大文件判定从 `setup()` 的 `.*` filetype detector 中抽成公开谓词 `is_big(buf, opts?)`（字节数超 `size` 或平均行长超 `line_length`，已标 `bigfile` 直接认定），detector 改为复用它（单一真源）。供其它模块在真正动手前自我设限——首个 caller 是 vv-log-hl（超大日志跳过逐行 badge 扫描）
 
 - **loading**：通用 buffer 行内 loading 动画（`vv-utils.loading`）。`start(opts)` 在指定 buffer 行末尾以 virt_text 渲染滚动帧动画，返回幂等 `stop()`；每次 `start()` 创建独立 namespace，多实例互不干扰。内置三套帧 preset：`braille`（⠋⠙⠹…，默认）/ `dots`（⣾⣽⣻…）/ `bounce`（▏▎▍…）；`opts.frames` 可完全自定义。关键选项：`interval_ms`（默认 80ms）、`hl`（默认 `'Comment'`）、`hl_mode`（默认 `'combine'`，透明背景）、`prefix`、`virt_text_pos`
