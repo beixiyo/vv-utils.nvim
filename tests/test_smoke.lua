@@ -6,7 +6,15 @@
 -- 让 require('vv-utils.xxx') 在 -u NONE 下也能工作
 local this = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p')
 local plugin_root = vim.fn.fnamemodify(this, ':h:h')
-package.path = plugin_root .. '/lua/?.lua;' .. plugin_root .. '/lua/?/init.lua;' .. package.path
+local vendors_root = vim.fn.fnamemodify(plugin_root, ':h')
+local icons_root = vendors_root .. '/vv-icons.nvim'
+package.path = table.concat({
+  plugin_root .. '/lua/?.lua',
+  plugin_root .. '/lua/?/init.lua',
+  icons_root .. '/lua/?.lua',
+  icons_root .. '/lua/?/init.lua',
+  package.path,
+}, ';')
 
 local passed = 0
 local failed = 0
@@ -33,30 +41,38 @@ test('path.lua: root_patterns 不含 "lua"', function()
   end
 end)
 
--- 2. diagnostics.lua: 高亮组已重命名为 VVDiag*
-test('diagnostics.lua: VVDiagError', function()
+-- 2. diagnostics.lua: 优先使用 vv-icons 的诊断图标与 Diagnostic* 高亮
+test('diagnostics.lua: DiagnosticError icon', function()
   package.loaded['vv-utils.diagnostics'] = nil
   local D = require('vv-utils.diagnostics')
+  local icons = require('vv-icons')
   local sym = D.symbol_for({ [vim.diagnostic.severity.ERROR] = 1 })
-  assert(sym and sym.hl == 'VVDiagError', '期望 VVDiagError, 实际: ' .. (sym and sym.hl or 'nil'))
+  assert(sym and sym.glyph == icons.diagnostics_error, '期望 vv-icons error glyph')
+  assert(sym and sym.hl == 'DiagnosticError', '期望 DiagnosticError, 实际: ' .. (sym and sym.hl or 'nil'))
 end)
 
-test('diagnostics.lua: VVDiagWarn', function()
+test('diagnostics.lua: DiagnosticWarn icon', function()
   local D = require('vv-utils.diagnostics')
+  local icons = require('vv-icons')
   local sym = D.symbol_for({ [vim.diagnostic.severity.WARN] = 1 })
-  assert(sym and sym.hl == 'VVDiagWarn', '期望 VVDiagWarn, 实际: ' .. (sym and sym.hl or 'nil'))
+  assert(sym and sym.glyph == icons.diagnostics_warn, '期望 vv-icons warn glyph')
+  assert(sym and sym.hl == 'DiagnosticWarn', '期望 DiagnosticWarn, 实际: ' .. (sym and sym.hl or 'nil'))
 end)
 
-test('diagnostics.lua: VVDiagInfo', function()
+test('diagnostics.lua: DiagnosticInfo icon', function()
   local D = require('vv-utils.diagnostics')
+  local icons = require('vv-icons')
   local sym = D.symbol_for({ [vim.diagnostic.severity.INFO] = 1 })
-  assert(sym and sym.hl == 'VVDiagInfo', '期望 VVDiagInfo, 实际: ' .. (sym and sym.hl or 'nil'))
+  assert(sym and sym.glyph == icons.diagnostics_info, '期望 vv-icons info glyph')
+  assert(sym and sym.hl == 'DiagnosticInfo', '期望 DiagnosticInfo, 实际: ' .. (sym and sym.hl or 'nil'))
 end)
 
-test('diagnostics.lua: VVDiagHint', function()
+test('diagnostics.lua: DiagnosticHint icon', function()
   local D = require('vv-utils.diagnostics')
+  local icons = require('vv-icons')
   local sym = D.symbol_for({ [vim.diagnostic.severity.HINT] = 1 })
-  assert(sym and sym.hl == 'VVDiagHint', '期望 VVDiagHint, 实际: ' .. (sym and sym.hl or 'nil'))
+  assert(sym and sym.glyph == icons.diagnostics_hint, '期望 vv-icons hint glyph')
+  assert(sym and sym.hl == 'DiagnosticHint', '期望 DiagnosticHint, 实际: ' .. (sym and sym.hl or 'nil'))
 end)
 
 test('diagnostics.lua: 不含旧名 VVExplorerDiag', function()

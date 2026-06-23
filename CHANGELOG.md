@@ -22,6 +22,7 @@
 
 ### Changed
 
+- **diagnostics.symbol_for：诊断徽标改用 `vv-icons` 图标 + `Diagnostic*` 高亮**：`symbol_for(counts)` 仍只按最高 severity 返回一个 `{ glyph, hl }`，但优先从 `vv-icons` 读取 `diagnostics_error/warn/info/hint`，颜色直接沿用 `DiagnosticError/Warn/Info/Hint`。未安装 `vv-icons` 时保留旧的 `E/W/I/H + VVDiag*` fallback，避免独立消费 vv-utils 的插件硬依赖图标库
 - **git：`VVGitRenamed` 配色 `#73c991` → `#4ec9b0`（青绿）**：原亮绿与 `VVGitUntracked`（同 `#73c991`）、`VVGitAdded`（`#81b88b` 灰绿）同属绿色系，R/C 状态在面板里难分辨。改青绿后三者拉开区分。色值是所有 vendor（vv-explorer / vv-git / statuscol）git 状态色的单一真相来源，一处改全局生效
 - **sys.open_default：补错误处理 + 返回值**：`vim.ui.open` 失败（无可用 opener，如纯 headless / 无 GUI 的 SSH）时 `vim.notify` 报错而非静默吞错，并返回 `boolean ok`（向后兼容，旧调用忽略返回值即可）。文档明确语义：目录→系统文件管理器、文件→默认程序
 - **sys.open_default：niri 焦点跟随**：niri 默认丢弃应用的 xdg-activation 聚焦请求（如已开 Firefox 里开新标签不抢焦点）。`$NIRI_SOCKET` 存在时，打开后异步经 `xdg-mime` 解析默认处理程序、轮询 `niri msg --json windows` 按 app_id（标题含文件名优先）定位并 `focus-window` 聚焦回来；非 niri 环境完全无副作用

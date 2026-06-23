@@ -14,21 +14,36 @@ local SEV = vim.diagnostic.severity
 -- 文本标签（按 severity 数值索引，1=Error … 4=Hint），用于复制/发送场景
 local SEVERITY_LABELS = { 'Error', 'Warn', 'Info', 'Hint' }
 
--- hl 名遵循 'VVDiag*'（默认与 DiagnosticError/Warn/Info/Hint link）
--- 想换 hl / glyph 的调用方可直接自己写 symbol_for 替代本函数
-local DEFAULT_HL = {
+local ICON_NAMES = {
+  [SEV.ERROR] = 'diagnostics_error',
+  [SEV.WARN]  = 'diagnostics_warn',
+  [SEV.INFO]  = 'diagnostics_info',
+  [SEV.HINT]  = 'diagnostics_hint',
+}
+
+local FALLBACK_HL = {
   [SEV.ERROR] = 'VVDiagError',
   [SEV.WARN]  = 'VVDiagWarn',
   [SEV.INFO]  = 'VVDiagInfo',
   [SEV.HINT]  = 'VVDiagHint',
 }
 
-local DEFAULT_GLYPH = {
+local FALLBACK_GLYPH = {
   [SEV.ERROR] = 'E',
   [SEV.WARN]  = 'W',
   [SEV.INFO]  = 'I',
   [SEV.HINT]  = 'H',
 }
+
+local function icon_for(sev)
+  local ok, icons = pcall(require, 'vv-icons')
+  if ok and icons and type(icons.get) == 'function' then
+    local glyph, hl = icons.get('diagnostics', ICON_NAMES[sev])
+    if glyph then return glyph, hl or FALLBACK_HL[sev] end
+  end
+
+  return FALLBACK_GLYPH[sev], FALLBACK_HL[sev]
+end
 
 -- 按最高 severity 选一个符号（数值越小越严重）
 ---@param counts table<integer,integer>?  vim.diagnostic.count 的返回
@@ -37,7 +52,8 @@ function M.symbol_for(counts)
   if not counts then return nil end
   for _, sev in ipairs({ SEV.ERROR, SEV.WARN, SEV.INFO, SEV.HINT }) do
     if counts[sev] and counts[sev] > 0 then
-      return { glyph = DEFAULT_GLYPH[sev], hl = DEFAULT_HL[sev] }
+      local glyph, hl = icon_for(sev)
+      return { glyph = glyph, hl = hl }
     end
   end
   return nil
