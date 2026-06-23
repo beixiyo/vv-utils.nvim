@@ -19,7 +19,7 @@
 --   drop        【副作用】终端拖拽路径检测 + handler 分发（覆写 vim.paste）
 --   bigfile     【副作用】大文件保护：filetype 探测 + 禁用重开销特性
 --   format      【副作用可选】中英文加空格 / 行尾清理（开启时注册 :VVAddSpaces / :VVCleanTrailing）
---   scroll      跨窗口平滑滚动（基于 vv-utils.animate，支持 easing + 连按去重）
+--   scroll      跨窗口平滑滚动（基于 vv-utils.animate，支持 easing + 连按去重 / 跳转动画包装）
 --
 -- 用法：
 --   local vv = require('vv-utils')

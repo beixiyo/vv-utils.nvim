@@ -455,6 +455,38 @@ local function start_auto_scroll(from_state, to_state)
   timer:start(0, 0, tick)
 end
 
+---在目标窗口执行一次跳转，并把跳转造成的视口变化转成平滑动画
+---@param win_id integer 目标窗口
+---@param fn fun() 要在目标窗口上下文里执行的动作
+---@return boolean ok 动作是否成功执行
+function M.with_view_animation(win_id, fn)
+  if type(fn) ~= 'function' then return false end
+  if not win_id or not vim.api.nvim_win_is_valid(win_id) then return false end
+
+  local from_state = capture_state(win_id)
+  local ok = pcall(vim.api.nvim_win_call, win_id, fn)
+  local to_state = capture_state(win_id)
+
+  if not from_state or not to_state then return ok end
+  if from_state.buf_id ~= to_state.buf_id then
+    track_state(win_id)
+    return ok
+  end
+
+  if vim.g.neovide or not config.enabled or not config.auto then
+    track_state(win_id)
+    return ok
+  end
+
+  if from_state.view.topline == to_state.view.topline then
+    track_state(win_id)
+    return ok
+  end
+
+  start_auto_scroll(from_state, to_state)
+  return ok
+end
+
 local function on_win_scrolled(args)
   if not config.enabled or not config.auto or vim.g.neovide then return end
 

@@ -49,7 +49,7 @@
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
-| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
+| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
 
 ## 引用方式
 

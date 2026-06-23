@@ -530,6 +530,53 @@ test('scroll.auto: auto_duration 会压缩自动跳转分步预算', function()
     'auto_max_steps 应继续限制分步数，实际: ' .. scroll._auto_step_count(240))
 end)
 
+test('scroll.with_view_animation: 包装显式视口跳转', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({
+    frame_ms = 1,
+    auto_duration = 40,
+    auto = true,
+    auto_min_lines = 2,
+    auto_max_steps = 20,
+  })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 200 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+  vim.api.nvim_win_set_cursor(win, { 20, 0 })
+  vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+
+  local ok = scroll.with_view_animation(win, function()
+    vim.api.nvim_win_set_cursor(0, { 45, 0 })
+    vim.fn.winrestview({ topline = 40, lnum = 45, col = 0 })
+  end)
+  assert(ok, 'with_view_animation 应返回 true')
+
+  local done = vim.wait(1000, function()
+    return vim.api.nvim_win_call(win, function()
+      return vim.fn.winsaveview().topline
+    end) == 40
+  end, 5)
+
+  local view = vim.api.nvim_win_call(win, function()
+    return vim.fn.winsaveview()
+  end)
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(done, '显式跳转动画未在 1000ms 内完成，当前 topline=' .. tostring(view.topline))
+end)
+
 test('scroll.auto: scrollbind 窗口跳过自动动画', function()
   local src = table.concat(vim.fn.readfile(plugin_root .. '/lua/vv-utils/scroll.lua'), '\n')
   local guard_at = src:find("nvim_get_option_value%('scrollbind'", 1)
