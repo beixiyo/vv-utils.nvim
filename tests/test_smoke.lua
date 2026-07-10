@@ -84,7 +84,31 @@ test('diagnostics.lua: 不含旧名 VVExplorerDiag', function()
   end
 end)
 
--- 3. hl.lua: 不修改传入的 specs
+-- 3. git.lua: 行级 diff 解析
+test('git.lua: parse_diff_lines 行级 A/C/D', function()
+  package.loaded['vv-utils.git'] = nil
+  local git = require('vv-utils.git')
+  local got = git.parse_diff_lines(table.concat({
+    '@@ -0,0 +1,2 @@',
+    '@@ -10,2 +10,3 @@',
+    '@@ -20,2 +22,0 @@',
+  }, '\n'))
+
+  local want = {
+    [1] = 'A',
+    [2] = 'A',
+    [10] = 'C',
+    [11] = 'C',
+    [12] = 'A',
+    [22] = 'D',
+  }
+
+  for lnum, kind in pairs(want) do
+    assert(got[lnum] == kind, ('第 %d 行期望 %s，实际 %s'):format(lnum, kind, tostring(got[lnum])))
+  end
+end)
+
+-- 4. hl.lua: 不修改传入的 specs
 test('hl.lua: apply() 不修改原始 specs', function()
   package.loaded['vv-utils.hl'] = nil
   local hl = require('vv-utils.hl')
@@ -97,7 +121,7 @@ test('hl.lua: apply() 不修改原始 specs', function()
   vim.api.nvim_set_hl(0, 'TestHlNoMutate', {})
 end)
 
--- 4. fs.lua: 原子写入
+-- 5. fs.lua: 原子写入
 test('fs.lua: write_all 原子写入', function()
   package.loaded['vv-utils.fs'] = nil
   local fs = require('vv-utils.fs')
@@ -118,7 +142,7 @@ test('fs.lua: write_all 原子写入', function()
   fs.delete(tmp_dir)
 end)
 
--- 5. sys.lua: 使用 vim.ui.open
+-- 6. sys.lua: 使用 vim.ui.open
 test('sys.lua: 使用 vim.ui.open 而非 jobstart', function()
   local src = vim.fn.readfile(plugin_root .. '/lua/vv-utils/sys.lua')
   local has_vim_ui_open = false
@@ -139,7 +163,7 @@ test('sys.lua: 不含平台检测代码', function()
   end
 end)
 
--- 6. README.md: 文档完整性
+-- 7. README.md: 文档完整性
 test('README.md: 包含 bufdelete 文档', function()
   local src = vim.fn.readfile(plugin_root .. '/README.md')
   local found = false
@@ -203,7 +227,7 @@ test('README.md: 包含 get_fg', function()
   assert(found, 'README 应包含 get_fg')
 end)
 
--- 7. editor.copy_path
+-- 8. editor.copy_path
 test('editor.copy_path: 函数存在', function()
   package.loaded['vv-utils.editor'] = nil
   local ed = require('vv-utils.editor')
@@ -249,7 +273,7 @@ test('editor.copy_path: 无路径时返回 nil', function()
   assert(got == nil, '空 buffer 应返回 nil, 实际: ' .. tostring(got))
 end)
 
--- 8. scroll.lua
+-- 9. scroll.lua
 test('scroll.setup: 默认滚动时长配置', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
@@ -330,6 +354,48 @@ test('scroll.window: 手动滚动期间抑制自动跳转动画', function()
   vim.api.nvim_buf_delete(buf, { force = true })
 
   assert(ok, '手动滚动结束后 suppression 应恢复，topline=' .. view.topline .. ', suppressed=' .. tostring(suppressed))
+end)
+
+test('scroll.with_auto_suppressed: 即时跳转不回弹为自动动画', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({ frame_ms = 12, auto_duration = 108, mouse_step = 3 })
+
+  local win = vim.api.nvim_get_current_win()
+  local prev_buf = vim.api.nvim_win_get_buf(win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+
+  for i = 1, 300 do
+    lines[i] = tostring(i)
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.wo[win].scrolloff = 0
+
+  scroll.with_auto_suppressed(win, function()
+    vim.api.nvim_win_set_cursor(win, { 20, 0 })
+    vim.fn.winrestview({ topline = 1, lnum = 20, col = 0 })
+  end)
+  vim.wait(100, function() return not scroll._auto_suppressed() end, 5)
+
+  local ok = scroll.with_auto_suppressed(win, function()
+    vim.api.nvim_win_call(win, function()
+      vim.cmd('keepjumps normal! 101Gzt')
+    end)
+  end)
+  vim.cmd.redraw()
+  local immediate_topline = vim.fn.winsaveview().topline
+  vim.wait(150, function() return false end, 10)
+  local final_topline = vim.fn.winsaveview().topline
+
+  vim.api.nvim_win_set_buf(win, prev_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(ok, '即时跳转回调执行失败')
+  assert(immediate_topline == 101, '即时跳转后 topline 应为 101，实际: ' .. immediate_topline)
+  assert(final_topline == 101, '即时跳转不应回弹或启动自动动画，实际: ' .. final_topline)
 end)
 
 test('scroll.window: key_duration 可独立限制键盘动画时长', function()

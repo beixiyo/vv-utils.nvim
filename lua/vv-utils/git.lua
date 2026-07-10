@@ -196,6 +196,71 @@ function M.symbol_for(xy)
   return SYMBOLS[xy] or { glyph = 'M', hl = 'VVGitModified' }
 end
 
+-- unified diff hunk header -> 行级标记。
+-- 规则与 vv-statuscol 当前 git 槽一致：
+--   old=0, new>0  -> 纯新增：new_start..new_start+new_len-1 标 A
+--   new=0, old>0  -> 纯删除：在 max(new_start, 1) 标 D
+--   old>0, new>0  -> 修改：重叠行标 C，额外新增行标 A，额外删除合并到最后一个 C
+---@param diff string
+---@return table<integer, 'A'|'C'|'D'>
+function M.parse_diff_lines(diff)
+  local out = {}
+
+  for line in (diff or ''):gmatch('[^\n]+') do
+    local old_len_s, new_start_s, new_len_s =
+      line:match('^@@ %-%d+,?(%d*) %+(%d+),?(%d*) @@')
+    if new_start_s then
+      local old_len = tonumber(old_len_s == '' and '1' or old_len_s) or 1
+      local new_start = tonumber(new_start_s) or 0
+      local new_len = tonumber(new_len_s == '' and '1' or new_len_s) or 1
+
+      if new_len == 0 and old_len > 0 then
+        out[math.max(new_start, 1)] = 'D'
+      elseif new_len > 0 and old_len == 0 then
+        for i = new_start, new_start + new_len - 1 do out[i] = 'A' end
+      elseif new_len > 0 and old_len > 0 then
+        local overlap = math.min(old_len, new_len)
+        for i = new_start, new_start + overlap - 1 do out[i] = 'C' end
+        if new_len > old_len then
+          for i = new_start + overlap, new_start + new_len - 1 do out[i] = 'A' end
+        end
+      end
+    end
+  end
+
+  return out
+end
+
+---异步获取文件的工作区行级 git diff 标记（工作树 vs index，等价 `git diff -U0 -- <path>`）
+---@param path string
+---@param cb fun(markers: table<integer, 'A'|'C'|'D'>?)
+function M.diff_lines(path, cb)
+  if not path or path == '' or vim.fn.filereadable(path) == 0 then
+    cb(nil)
+    return
+  end
+
+  path = norm(path)
+  local dir = vim.fs.dirname(path)
+
+  M.root_async(dir, function(root)
+    if not root then cb(nil); return end
+
+    vim.system(
+      { 'git', '-C', root, '--no-pager', 'diff', '-U0', '--no-color', '--no-ext-diff', '--', path },
+      { text = true },
+      vim.schedule_wrap(function(res)
+        if res.code ~= 0 then
+          cb(nil)
+          return
+        end
+
+        cb(M.parse_diff_lines(res.stdout or ''))
+      end)
+    )
+  end)
+end
+
 -- ls-files 输出构造 tracked_set：文件 + 每层祖先目录都标 true
 -- 这样 `.github/workflows/ci.yml` 被跟踪时 `.github/` 也算，filter 层能整条放行
 ---@param data string  ls-files -z 的 NUL 分隔输出

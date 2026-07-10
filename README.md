@@ -31,7 +31,7 @@
 | `vv-utils.path` | `norm(p)` 规范化路径、`get_root(buf?)` 向上找项目根、`get_cwd()` |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
-| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`register_hl()` 注册 VSCode Dark+ 调色板 |
+| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb)` 获取行级 A/C/D 标记；`register_hl()` 注册 VSCode Dark+ 调色板 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
@@ -49,7 +49,7 @@
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
-| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
+| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)` / `with_auto_suppressed(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
 
 ## 引用方式
 

@@ -487,6 +487,30 @@ function M.with_view_animation(win_id, fn)
   return ok
 end
 
+---在目标窗口执行即时视口变更，并阻止 WinScrolled 把它转换成自动动画
+---@param win_id integer 目标窗口
+---@param fn fun() 即时视口变更
+---@return boolean ok 变更是否成功执行
+function M.with_auto_suppressed(win_id, fn)
+  if type(fn) ~= 'function' then return false end
+  if not win_id or not vim.api.nvim_win_is_valid(win_id) then return false end
+
+  stop_scroll(win_id)
+  auto_busy[win_id] = nil
+
+  local suppress_ms = math.max(40, (config.frame_ms or defaults.frame_ms) * 3)
+  manual_scroll_count = manual_scroll_count + 1
+  manual_suppress_until = uv.now() + suppress_ms
+
+  local ok = pcall(fn)
+
+  manual_scroll_count = math.max(0, manual_scroll_count - 1)
+  manual_suppress_until = uv.now() + suppress_ms
+  track_state(win_id)
+
+  return ok
+end
+
 local function on_win_scrolled(args)
   if not config.enabled or not config.auto or vim.g.neovide then return end
 
