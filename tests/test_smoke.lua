@@ -108,6 +108,49 @@ test('git.lua: parse_diff_lines 行级 A/C/D', function()
   end
 end)
 
+test('git.lua: diff_lines 区分 worktree 与 staged，并支持旧侧删除行', function()
+  local git = require('vv-utils.git')
+  local tmp_dir = vim.fn.tempname()
+  vim.fn.mkdir(tmp_dir, 'p')
+
+  local changed = tmp_dir .. '/changed.txt'
+  local removed = tmp_dir .. '/removed.txt'
+  vim.fn.writefile({ 'one', 'two', 'three' }, changed)
+  vim.fn.writefile({ 'old one', 'old two' }, removed)
+
+  vim.fn.system({ 'git', '-C', tmp_dir, 'init', '-q' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'config', 'user.name', 'vv-utils test' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'config', 'user.email', 'test@example.com' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'changed.txt', 'removed.txt' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'commit', '-qm', 'initial' })
+
+  vim.fn.writefile({ 'one', 'two', 'staged', 'three' }, changed)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'changed.txt' })
+  vim.fn.delete(removed)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'removed.txt' })
+
+  local function diff(path, opts)
+    local done = false
+    local markers
+    git.diff_lines(path, function(result)
+      markers = result
+      done = true
+    end, opts)
+    assert(vim.wait(3000, function() return done end), 'diff_lines callback timeout')
+    return markers or {}
+  end
+
+  local worktree = diff(changed)
+  local staged = diff('changed.txt', { root = tmp_dir, mode = 'staged' })
+  local deleted = diff('removed.txt', { root = tmp_dir, mode = 'staged', side = 'old' })
+
+  assert(next(worktree) == nil, '纯 staged 文件不应出现在 worktree diff')
+  assert(staged[3] == 'A', 'staged 新增行应投影到 index 新侧第 3 行')
+  assert(deleted[1] == 'D' and deleted[2] == 'D', 'staged 删除应投影到 HEAD 旧侧原始行')
+
+  vim.fn.delete(tmp_dir, 'rf')
+end)
+
 -- 4. hl.lua: 不修改传入的 specs
 test('hl.lua: apply() 不修改原始 specs', function()
   package.loaded['vv-utils.hl'] = nil

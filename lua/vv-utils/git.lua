@@ -197,32 +197,50 @@ function M.symbol_for(xy)
 end
 
 -- unified diff hunk header -> 行级标记。
--- 规则与 vv-statuscol 当前 git 槽一致：
+-- 默认投影 new 侧，规则与 vv-statuscol 当前 git 槽一致：
 --   old=0, new>0  -> 纯新增：new_start..new_start+new_len-1 标 A
 --   new=0, old>0  -> 纯删除：在 max(new_start, 1) 标 D
 --   old>0, new>0  -> 修改：重叠行标 C，额外新增行标 A，额外删除合并到最后一个 C
+-- old 侧用于显示 HEAD 等基准内容：纯删除覆盖原始行，修改按 old 行号投影。
 ---@param diff string
+---@param side? 'new'|'old'  投影到 diff 哪一侧 @default 'new'
 ---@return table<integer, 'A'|'C'|'D'>
-function M.parse_diff_lines(diff)
+function M.parse_diff_lines(diff, side)
   local out = {}
+  side = side or 'new'
 
   for line in (diff or ''):gmatch('[^\n]+') do
-    local old_len_s, new_start_s, new_len_s =
-      line:match('^@@ %-%d+,?(%d*) %+(%d+),?(%d*) @@')
+    local old_start_s, old_len_s, new_start_s, new_len_s =
+      line:match('^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@')
     if new_start_s then
+      local old_start = tonumber(old_start_s) or 0
       local old_len = tonumber(old_len_s == '' and '1' or old_len_s) or 1
       local new_start = tonumber(new_start_s) or 0
       local new_len = tonumber(new_len_s == '' and '1' or new_len_s) or 1
 
-      if new_len == 0 and old_len > 0 then
-        out[math.max(new_start, 1)] = 'D'
-      elseif new_len > 0 and old_len == 0 then
-        for i = new_start, new_start + new_len - 1 do out[i] = 'A' end
-      elseif new_len > 0 and old_len > 0 then
-        local overlap = math.min(old_len, new_len)
-        for i = new_start, new_start + overlap - 1 do out[i] = 'C' end
-        if new_len > old_len then
-          for i = new_start + overlap, new_start + new_len - 1 do out[i] = 'A' end
+      if side == 'old' then
+        if old_len == 0 and new_len > 0 then
+          out[math.max(old_start, 1)] = 'A'
+        elseif old_len > 0 and new_len == 0 then
+          for i = old_start, old_start + old_len - 1 do out[i] = 'D' end
+        elseif old_len > 0 and new_len > 0 then
+          local overlap = math.min(old_len, new_len)
+          for i = old_start, old_start + overlap - 1 do out[i] = 'C' end
+          if old_len > new_len then
+            for i = old_start + overlap, old_start + old_len - 1 do out[i] = 'D' end
+          end
+        end
+      else
+        if new_len == 0 and old_len > 0 then
+          out[math.max(new_start, 1)] = 'D'
+        elseif new_len > 0 and old_len == 0 then
+          for i = new_start, new_start + new_len - 1 do out[i] = 'A' end
+        elseif new_len > 0 and old_len > 0 then
+          local overlap = math.min(old_len, new_len)
+          for i = new_start, new_start + overlap - 1 do out[i] = 'C' end
+          if new_len > old_len then
+            for i = new_start + overlap, new_start + new_len - 1 do out[i] = 'A' end
+          end
         end
       end
     end
@@ -231,34 +249,47 @@ function M.parse_diff_lines(diff)
   return out
 end
 
----异步获取文件的工作区行级 git diff 标记（工作树 vs index，等价 `git diff -U0 -- <path>`）
+---异步获取文件的行级 git diff 标记
 ---@param path string
 ---@param cb fun(markers: table<integer, 'A'|'C'|'D'>?)
-function M.diff_lines(path, cb)
-  if not path or path == '' or vim.fn.filereadable(path) == 0 then
+---@param opts? VVGitDiffLinesOpts
+function M.diff_lines(path, cb, opts)
+  opts = opts or {}
+  if not path or path == '' then
+    cb(nil)
+    return
+  end
+
+  local mode = opts.mode or 'worktree'
+  local function run(root)
+    if not root then cb(nil); return end
+
+    local cmd = { 'git', '-C', root, '--no-pager', 'diff' }
+    if mode == 'staged' then cmd[#cmd + 1] = '--cached' end
+    vim.list_extend(cmd, { '-U0', '--no-color', '--no-ext-diff', '--', path })
+
+    vim.system(cmd, { text = true }, vim.schedule_wrap(function(res)
+      if res.code ~= 0 then
+        cb(nil)
+        return
+      end
+
+      cb(M.parse_diff_lines(res.stdout or '', opts.side))
+    end))
+  end
+
+  if opts.root then
+    run(norm(opts.root))
+    return
+  end
+
+  if vim.fn.filereadable(path) == 0 then
     cb(nil)
     return
   end
 
   path = norm(path)
-  local dir = vim.fs.dirname(path)
-
-  M.root_async(dir, function(root)
-    if not root then cb(nil); return end
-
-    vim.system(
-      { 'git', '-C', root, '--no-pager', 'diff', '-U0', '--no-color', '--no-ext-diff', '--', path },
-      { text = true },
-      vim.schedule_wrap(function(res)
-        if res.code ~= 0 then
-          cb(nil)
-          return
-        end
-
-        cb(M.parse_diff_lines(res.stdout or ''))
-      end)
-    )
-  end)
+  M.root_async(vim.fs.dirname(path), run)
 end
 
 -- ls-files 输出构造 tracked_set：文件 + 每层祖先目录都标 true
@@ -392,5 +423,10 @@ function M.ignored_entries(root, cb, opts)
     cb(ifiles, idirs)
   end))
 end
+
+---@class VVGitDiffLinesOpts
+---@field root? string  Git 仓库根；虚拟或已删除文件必须提供
+---@field mode? 'worktree'|'staged'  比较工作树与 index，或比较 index 与 HEAD @default 'worktree'
+---@field side? 'new'|'old'  将 hunk 行号投影到新侧或旧侧 @default 'new'
 
 return M
