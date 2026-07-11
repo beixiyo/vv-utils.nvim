@@ -31,7 +31,7 @@
 | `vv-utils.path` | `norm(p)` 规范化路径、`get_root(buf?)` 向上找项目根、`get_cwd()` |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
-| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb, opts?)` 获取 worktree 或 staged 的行级 A/C/D 标记；`register_hl()` 注册 VSCode Dark+ 调色板 |
+| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`register_hl()` 注册 VSCode Dark+ 调色板 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |

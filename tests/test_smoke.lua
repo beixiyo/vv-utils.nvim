@@ -151,6 +151,37 @@ test('git.lua: diff_lines 区分 worktree 与 staged，并支持旧侧删除行'
   vim.fn.delete(tmp_dir, 'rf')
 end)
 
+test('git.lua: diff_line_sets 同时返回 staged / unstaged 并映射到 worktree', function()
+  local git = require('vv-utils.git')
+  local tmp_dir = vim.fn.tempname()
+  vim.fn.mkdir(tmp_dir, 'p')
+  local path = tmp_dir .. '/both.txt'
+
+  vim.fn.writefile({ 'one', 'two', 'three', 'four' }, path)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'init', '-q' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'config', 'user.name', 'vv-utils test' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'config', 'user.email', 'test@example.com' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'both.txt' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'commit', '-qm', 'initial' })
+
+  vim.fn.writefile({ 'one', 'staged', 'two', 'three', 'four' }, path)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'both.txt' })
+  vim.fn.writefile({ 'worktree', 'one', 'staged again', 'two', 'three', 'four' }, path)
+
+  local done = false
+  local sets
+  git.diff_line_sets(path, function(result)
+    sets = result
+    done = true
+  end)
+  assert(vim.wait(3000, function() return done end), 'diff_line_sets callback timeout')
+  assert(sets and sets.staged[3] == 'A', 'staged 第 2 行应在 worktree 中映射到第 3 行')
+  assert(sets and sets.unstaged[1] == 'A', 'worktree 新增行应显示 unstaged marker')
+  assert(sets and sets.unstaged[3] == 'C', '暂存后再次修改应显示 unstaged marker')
+
+  vim.fn.delete(tmp_dir, 'rf')
+end)
+
 -- 4. hl.lua: 不修改传入的 specs
 test('hl.lua: apply() 不修改原始 specs', function()
   package.loaded['vv-utils.hl'] = nil
