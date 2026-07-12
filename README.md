@@ -1,13 +1,13 @@
 <h1 align="center">vv-utils.nvim</h1>
 
 <p align="center">
-  <em>vv-* 系列插件的共享工具库 — 纯 Lua，零外部依赖</em>
+  <em>vv-* 系列插件的共享工具库 — 纯 Lua，零 Lua 依赖</em>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Neovim-0.10+-57A143?style=flat-square&logo=neovim&logoColor=white" alt="Requires Neovim 0.10+" />
   <img src="https://img.shields.io/badge/Lua-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua" />
-  <img src="https://img.shields.io/badge/zero_deps-✓-2ea44f?style=flat-square" alt="Zero Dependencies" />
+  <img src="https://img.shields.io/badge/zero_Lua_deps-✓-2ea44f?style=flat-square" alt="Zero Lua Dependencies" />
 </p>
 
 ---
@@ -45,6 +45,7 @@
 | `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
 | `vv-utils.mouse` | `block_visual_drag(buf)` 给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual；补 buffer-local Nop 拦不住「跨窗口点进面板再拖」的盲区 |
 | `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
+| `vv-utils.download` | `file(opts, callback)` 跨平台异步下载文件；Unix 优先 `curl` / `wget`，Windows 优先 PowerShell 并显式检查 `curl.exe`，避免混淆 PowerShell 的 `curl` alias；缺少命令时返回可操作的结构化错误 |
 | `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）。两条路统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste` 从 bracketed paste 检测路径（`pos=nil`，无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47 且脱 tmux）** 带落点坐标 + 拖拽事件（`pos={x,y,op}`）。`register(handler)` 签名 `fun(paths, pos)`；`on_drag(cb)` 订阅移动/离开（实时高亮用）；内置默认 handler（Normal 下 `:edit`）；`setup({ kitty_dnd=false })` 关协议 |
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |

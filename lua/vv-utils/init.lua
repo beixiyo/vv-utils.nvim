@@ -9,6 +9,7 @@
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   mouse       nofile 面板鼠标防护（block_visual_drag：禁拖拽/多击含跨窗口拖入进 visual）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
+--   download    跨平台文件下载（curl / wget / PowerShell 自动选择）
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
 --   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
