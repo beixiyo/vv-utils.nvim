@@ -314,4 +314,20 @@ function M.restore(transaction)
   rollback(transaction, true)
 end
 
+---清理事务为原先未加载的目标文件创建的临时 buffer
+---@param transaction table M.prepare 返回的事务
+function M.cleanup(transaction)
+  for _, state in pairs(transaction.states or {}) do
+    if not state.bufnr then
+      local bufnr = find_loaded_buffer(state.uri)
+      if bufnr >= 0
+          and vim.api.nvim_buf_is_valid(bufnr)
+          and not vim.bo[bufnr].modified
+          and #vim.fn.win_findbuf(bufnr) == 0 then
+        pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+      end
+    end
+  end
+end
+
 return M

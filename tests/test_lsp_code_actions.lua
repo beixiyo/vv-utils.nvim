@@ -61,6 +61,16 @@ assert(vim.iter(requests):all(function(params)
   return not vim.tbl_contains(params.context.only or {}, 'source.fixAll')
 end), 'line fixes must not request source.fixAll')
 
+client.request_sync = function()
+  return { err = { code = -32603, message = 'fixture response failed' } }
+end
+local failed = CodeActions.fix_document({ bufnr = bufnr, timeout_ms = 10 })
+assert(failed.changed == false and failed.error.code == 'code_action_request_failed',
+  'client request failures must not be reported as no_quickfixes')
+assert(failed.error.errors['fixture-lsp'].message == 'fixture response failed')
+assert(failed.error.errors['fixture-lsp'].kind == 'response_error')
+assert(failed.error.errors['fixture-lsp'].retryable == false)
+
 vim.lsp.get_clients = original_get_clients
 Fs.delete(tmp)
 print('vv-utils LSP code action test: ok')

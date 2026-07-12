@@ -51,7 +51,12 @@
 local M = {}
 
 -- 列出所有「带可选 setup 副作用」的子模块；新增带副作用的模块只需在此追加
-local SETUPABLE = { 'drop', 'bigfile', 'format', 'scroll' }
+local SETUPABLE = {
+  'drop',
+  'bigfile',
+  'format',
+  'scroll',
+}
 
 ---@param opts? vv-utils.Opts
 function M.setup(opts)

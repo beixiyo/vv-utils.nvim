@@ -35,6 +35,7 @@
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.lsp.workspace_edit` | 多客户端 WorkspaceEdit 规范化、去重、冲突检查、状态快照、原子应用与回滚 |
 | `vv-utils.lsp.code_actions` | `collect_document_fixes(opts)` 收集安全事务；`fix_document(opts)` 直接应用整文件或指定行的可编辑修复 |
+| `vv-utils.lsp.fix` | `file(opts)` / `files(paths, opts)` 等待多 LSP 修复收敛并原子应用 |
 | `vv-utils.lsp.file_operations` | 收集 `workspace/willRenameFiles` 编辑并发送 `workspace/didRenameFiles`；不负责文件移动或业务事务 |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |

@@ -4,6 +4,8 @@
 
 ### Added
 
+- **lsp.fix**：新增可复用的 LSP 自动修复引擎。统一负责 filetype 识别、客户端冷启动等待、Code Action 双采样收敛、单文件原子应用和临时 buffer 清理；`files()` 以异步串行方式处理多文件
+
 - **mouse**：新增 `block_visual_drag(buf)`，给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual。补 buffer-local Nop 的盲区——跨窗口「从别窗点进面板再拖 / 多击」时按下走源窗口 keymap，buffer-local 拦不住，守卫一旦进 visual 即退回 normal。caller：vv-explorer / vv-git（实现细节见模块注释）
 
 - **bigfile.is_big**：把大文件判定从 `setup()` 的 `.*` filetype detector 中抽成公开谓词 `is_big(buf, opts?)`（字节数超 `size` 或平均行长超 `line_length`，已标 `bigfile` 直接认定），detector 改为复用它（单一真源）。供其它模块在真正动手前自我设限——首个 caller 是 vv-log-hl（超大日志跳过逐行 badge 扫描）
@@ -30,6 +32,9 @@
 - **help_panel：`<C-X>` → `<C-x>` 归一化**：Neovim 对 Ctrl 键统一存大写，渲染时还原为小写（Ctrl 不区分大小写）；`<M->`/`<S->` 保持原样
 
 ### Fixed
+
+- **lsp.code_actions**：不再把 `textDocument/codeAction`、`codeAction/resolve` 的等待失败或 LSP `ResponseError` 静默折叠为 `no_quickfixes`；失败客户端立即停止后续请求，瞬时 timeout/interrupted 仅在整体 deadline 内重试，任一终局错误都会阻止部分编辑落盘
+- **lsp.fix**：二进制文件在内容嗅探前仅读取 4KB 并检查 NUL，避免“前 100 行”意外读入无换行的大文件
 
 - **format.apply_to_buffer：nvim_buf_set_lines 前判 modifiable，nomodifiable/只读 buffer 上不再抛 E21，改友好 WARN 返回**
 - **drop.try_resolve_path：先按原始路径 fs_stat、未命中再 shell_unescape 后备，不再误删 Kitty 等原始路径里的字面反斜杠**

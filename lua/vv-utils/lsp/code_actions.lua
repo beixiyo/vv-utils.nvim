@@ -82,10 +82,33 @@ local function fix_all_params(bufnr)
   return params
 end
 
+local function request_error(response, wait_error)
+  if wait_error then
+    local kind = type(wait_error) == 'string' and wait_error or 'request_error'
+    return {
+      kind = kind,
+      message = type(wait_error) == 'table'
+          and (wait_error.message or vim.inspect(wait_error))
+          or tostring(wait_error),
+      retryable = kind == 'timeout' or kind == 'interrupted',
+    }
+  end
+  if response and response.err then
+    return {
+      kind = 'response_error',
+      code = response.err.code,
+      message = response.err.message or vim.inspect(response.err),
+      retryable = false,
+    }
+  end
+end
+
 local function resolve_action(action, client, bufnr, timeout_ms)
   if action.disabled then return nil end
   if not action.edit and action.data and client:supports_method('codeAction/resolve', bufnr) then
-    local response = client:request_sync('codeAction/resolve', action, timeout_ms, bufnr)
+    local response, wait_error = client:request_sync('codeAction/resolve', action, timeout_ms, bufnr)
+    local error = request_error(response, wait_error)
+    if error then return nil, error end
     action = response and response.result or action
   end
   if action.command or not action.edit then return nil end
@@ -111,13 +134,24 @@ function M.collect_document_fixes(opts)
   local edits = {}
   local titles = {}
   local client_names = {}
+  local errors = {}
   local seen = {}
 
   local function collect(client, params)
     local count = 0
-    local response = client:request_sync('textDocument/codeAction', params, timeout_ms, bufnr)
+    local response, wait_error = client:request_sync(
+      'textDocument/codeAction', params, timeout_ms, bufnr
+    )
+    local error = request_error(response, wait_error)
+    if error then
+      errors[client.name] = error
+      return nil
+    end
     for _, candidate in ipairs(response and response.result or {}) do
-      local action = resolve_action(candidate, client, bufnr, timeout_ms)
+      local action, resolve_error = resolve_action(candidate, client, bufnr, timeout_ms)
+      if resolve_error then
+        errors[client.name] = resolve_error
+      end
       if action then
         local fingerprint = vim.fn.sha256(vim.json.encode({ client = client.id, edit = action.edit }))
         if not seen[fingerprint] then
@@ -137,12 +171,23 @@ function M.collect_document_fixes(opts)
 
   for _, client in ipairs(clients) do
     local fix_all_count = prefer_fix_all and collect(client, fix_all_params(bufnr)) or 0
-    if fix_all_count == 0 then
+    if not errors[client.name] and fix_all_count == 0 then
       collect(client, request_params(bufnr, target_line, target_character, target_line == nil))
-      for _, diagnostic in ipairs(client_diagnostics(bufnr, client, target_line)) do
-        collect(client, diagnostic_params(bufnr, diagnostic))
+      if not errors[client.name] then
+        for _, diagnostic in ipairs(client_diagnostics(bufnr, client, target_line)) do
+          collect(client, diagnostic_params(bufnr, diagnostic))
+          if errors[client.name] then break end
+        end
       end
     end
+  end
+
+  if not vim.tbl_isempty(errors) then
+    return nil, {
+      code = 'code_action_request_failed',
+      message = 'One or more LSP clients failed while collecting code actions',
+      errors = errors,
+    }
   end
 
   if #edits == 0 then
