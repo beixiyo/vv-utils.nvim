@@ -1,92 +1,114 @@
-<h1 align="center">vv-utils.nvim</h1>
+<div align="center">
 
-<p align="center">
-  <em>vv-* 系列插件的共享工具库 — 纯 Lua，零 Lua 依赖</em>
-</p>
+# vv-utils.nvim
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Neovim-0.10+-57A143?style=flat-square&logo=neovim&logoColor=white" alt="Requires Neovim 0.10+" />
-  <img src="https://img.shields.io/badge/Lua-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua" />
-  <img src="https://img.shields.io/badge/zero_Lua_deps-✓-2ea44f?style=flat-square" alt="Zero Lua Dependencies" />
-</p>
+English | <a href="./README.zh-CN.md">中文</a>
+
+Want my Neovim config? See <a href="https://github.com/beixiyo/dotfiles">dotfiles</a>.
+
+<em>The shared utility library for vv-* plugins, written in pure Lua with no Lua dependencies</em>
+
+<br />
+
+<img src="https://img.shields.io/badge/Neovim-0.10+-57A143?style=flat-square&logo=neovim&logoColor=white" alt="Requires Neovim 0.10+" />
+<img src="https://img.shields.io/badge/Lua-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua" />
+<img src="https://img.shields.io/badge/zero_Lua_deps-✓-2ea44f?style=flat-square" alt="Zero Lua Dependencies" />
+
+</div>
 
 ---
 
-## 安装
+## Optional external tools
 
-通常不需要手动安装 — 其他 `vv-*` 插件通过 `dependencies` 自动拉取。如果直接消费：
+The core library has no Lua dependencies. Individual modules use external programs only when their corresponding feature is called:
+
+- [Git](https://github.com/git/git) — `vv-utils.git` and Git-tracked formatting scopes
+- One of [curl](https://github.com/curl/curl), [wget](https://github.com/mirror/wget), or [PowerShell](https://github.com/PowerShell/PowerShell) — `vv-utils.download`
+- A matching interpreter or runtime such as [Bun](https://github.com/oven-sh/bun), [Deno](https://github.com/denoland/deno), [Node.js](https://github.com/nodejs/node), [Python](https://github.com/python/cpython), [Ruby](https://github.com/ruby/ruby), [Perl](https://github.com/Perl/perl5), [PHP](https://github.com/php/php-src), or a shell — `vv-utils.exec`; the module selects the first available configured runner
+
+## Installation
+
+Manual installation is usually unnecessary because other `vv-*` plugins pull it in through `dependencies`. To consume it directly:
 
 ```lua
 {
   'beixiyo/vv-utils.nvim',
   lazy = false,
-  priority = 1000, -- 其他插件启动期 require 时需要先就位
+  priority = 1000, -- Make it available before plugins require it during startup
 }
 ```
 
-## 模块
+## Modules
 
-| 模块 | 说明 |
-|------|------|
-| `vv-utils.path` | `norm(p)` 规范化路径、`get_root(buf?)` 向上找项目根、`get_cwd()` |
-| `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
-| `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
-| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`register_hl()` 注册 VSCode Dark+ 调色板 |
-| `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
-| `vv-utils.lsp.workspace_edit` | 多客户端 WorkspaceEdit 规范化、去重、冲突检查、状态快照、原子应用与回滚 |
-| `vv-utils.lsp.code_actions` | `collect_document_fixes(opts)` 收集安全事务；`fix_document(opts)` 直接应用整文件或指定行的可编辑修复 |
-| `vv-utils.lsp.fix` | `file(opts)` / `files(paths, opts)` 等待多 LSP 修复收敛并原子应用 |
-| `vv-utils.lsp.file_operations` | 收集 `workspace/willRenameFiles` 编辑并发送 `workspace/didRenameFiles`；不负责文件移动或业务事务 |
-| `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
-| `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
-| `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
-| `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
-| `vv-utils.bufdelete` | 删 buffer 不破坏窗口布局：`delete` / `all` / `other` / `smart` |
-| `vv-utils.loading` | buffer 行内 loading 动画：`start(opts)` → `stop()`；纯帧计时器 `ticker({on_frame})`（只跑 timer + 循环帧、每帧回调当前帧字符**不渲染**，供帧要塞进调用方自己的多段 virt_text 场景）；内置 `presets.braille`（默认）/ `dots` / `bounce`；`hl_mode='combine'` 透明背景 |
-| `vv-utils.prompt` | 底部锚定双行浮动过滤框：`open(anchor_win, opts)` → `handle{close, redraw, set_busy, set_status}`；mode badge + `<S-Tab>` 切模式、placeholder、`timer.debounce` 防抖（支持 `int\|fun` 自适应）、光标锁、失焦取消；可选 spinner（`set_busy` push 模型，帧走 `loading.ticker`）/ `on_navigate`(C-n/C-p) / `on_open_in`(C-x/C-v)。vv-flow / vv-explorer 共用 |
-| `vv-utils.match` | 列表过滤命中判定（纯函数）：`compile(query, {mode, ignore_case})` → `(谓词, ok)`，编译一次复用；三模式 `fixed`（字面子串）/ `subseq`（子序列模糊）/ `regex`（vim 正则），**只判命中不打分不重排**（保住原有分组/顺序）；`next_mode` / `next_in` 模式轮换 |
-| `vv-utils.editor` | `copy(text)` / `visual_range()` / `copy_path(opts?)` |
-| `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
-| `vv-utils.mouse` | `block_visual_drag(buf)` 给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual；补 buffer-local Nop 拦不住「跨窗口点进面板再拖」的盲区 |
-| `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
-| `vv-utils.download` | `file(opts, callback)` 跨平台异步下载文件；Unix 优先 `curl` / `wget`，Windows 优先 PowerShell 并显式检查 `curl.exe`，避免混淆 PowerShell 的 `curl` alias；缺少命令时返回可操作的结构化错误 |
-| `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）。两条路统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste` 从 bracketed paste 检测路径（`pos=nil`，无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47 且脱 tmux）** 带落点坐标 + 拖拽事件（`pos={x,y,op}`）。`register(handler)` 签名 `fun(paths, pos)`；`on_drag(cb)` 订阅移动/离开（实时高亮用）；内置默认 handler（Normal 下 `:edit`）；`setup({ kitty_dnd=false })` 关协议 |
-| `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
-| `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
-| `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
-| `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)` / `with_auto_suppressed(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
+| Module | Description |
+|---|---|
+| `vv-utils.path` | Path normalization, project-root discovery, and current-directory lookup |
+| `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
+| `vv-utils.fs` | Filesystem primitives: recursive create/delete/copy, EXDEV-safe rename, full reads, and atomic writes |
+| `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
+| `vv-utils.diagnostics` | Diagnostics grouped by path, highest-severity symbols, and formatted diagnostics for line ranges |
+| `vv-utils.lsp.workspace_edit` | Multi-client WorkspaceEdit normalization, deduplication, conflict checks, snapshots, atomic apply, and rollback |
+| `vv-utils.lsp.code_actions` | Collect safe document-fix transactions or apply editable fixes to a document or line range |
+| `vv-utils.lsp.fix` | Apply converged multi-LSP fixes atomically to one file or multiple paths |
+| `vv-utils.lsp.file_operations` | Collect `workspace/willRenameFiles` edits and send `workspace/didRenameFiles`; it does not move files |
+| `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
+| `vv-utils.hl` | Batch highlight registration with `default=true`, ColorScheme refresh, and foreground lookup |
+| `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
+| `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
+| `vv-utils.bufdelete` | Layout-safe buffer deletion through `delete`, `all`, `other`, and `smart` |
+| `vv-utils.loading` | Inline loading animation plus a render-free frame ticker and braille, dots, and bounce presets |
+| `vv-utils.prompt` | Bottom-anchored two-line filtering prompt with modes, debounce, spinner, navigation, and split-open callbacks |
+| `vv-utils.match` | Compile fixed, subsequence, or Vim-regex predicates without scoring or reordering the source list |
+| `vv-utils.editor` | Text copy, Visual range, and path-copy helpers |
+| `vv-utils.sys` | Cross-platform default-app opening through `vim.ui.open`, with niri focus restoration |
+| `vv-utils.mouse` | Prevent nofile panels from entering Visual mode through mouse drags or multi-clicks, including cross-window drags |
+| `vv-utils.exec` | Resolve commands from shebangs or extension-specific executable runners and return pure `{ cmd, runner }` data |
+| `vv-utils.download` | Async cross-platform downloads via curl, wget, or PowerShell with structured actionable errors |
+| `vv-utils.drop` | Terminal path-drop dispatch through bracketed paste and optional Kitty OSC 72 coordinates and drag events |
+| `vv-utils.bigfile` | Opt-in large-file protection that disables expensive editor features |
+| `vv-utils.format` | Opt-in Chinese/English spacing and trailing-whitespace cleanup commands |
+| `vv-utils.animate` | Timer-driven interpolation with linear, quadratic, and cubic easing functions |
+| `vv-utils.scroll` | Cross-window smooth scrolling, view animations, auto-animation suppression, and native or smooth mouse behavior |
 
-## 引用方式
+Important details:
+
+- `git.index(root, cb)` returns `status_map`, `is_ignored`, and symbol helpers
+- `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
+- `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
+- `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
+- `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
+- `drop.register(handler)` receives `fun(paths, pos)`, while `drop.on_drag(cb)` subscribes to movement and leave events
+- Kitty DnD requires Kitty 0.47 or newer and does not operate through tmux
+
+## Imports
 
 ```lua
--- 直接引用子模块
 local path = require('vv-utils.path')
 path.get_root()
 
--- 或走 facade
 local utils = require('vv-utils')
 utils.path.get_root()
 utils.yaml.parse(...)
 ```
 
-## 配置
+## Configuration
 
-大多数模块是纯函数库，无需配置。带副作用的模块需显式启用：
+Most modules are pure-function libraries and need no setup. Modules with side effects must be enabled explicitly:
 
 ```lua
 require('vv-utils').setup({
-  drop    = true,          -- 终端拖拽：粘贴检测 + kitty DnD 落点协议（覆写 vim.paste）
-  bigfile = true,          -- 启用大文件保护
-  format  = true,          -- 启用中英文排版命令（:VVAddSpaces / :VVCleanTrailing）
-  scroll  = {
-    duration = 180,        -- 默认动画上限（ms）
-    key_duration = 120,    -- <C-e>/<C-y> 上限
-    auto_duration = 108,   -- gg/G/搜索等跳转上限
-    auto_max_steps = 10,   -- 自动跳转最大分步数；实际还会受 auto_duration/frame_ms 约束
-    frame_ms = 12,         -- 距离较短时按帧间隔缩短动画
-    mouse = 'native',      -- 鼠标默认走原生滚动；可设 'smooth'
+  drop = true,          -- Paste detection and Kitty DnD coordinates; overrides vim.paste
+  bigfile = true,       -- Enable large-file protection
+  format = true,        -- Enable :VVAddSpaces and :VVCleanTrailing
+  scroll = {
+    duration = 180,     -- General animation cap in milliseconds
+    key_duration = 120, -- <C-e>/<C-y> animation cap
+    auto_duration = 108,-- gg/G/search jump animation cap
+    auto_max_steps = 10,-- Also bounded by auto_duration/frame_ms
+    frame_ms = 12,      -- Shorten short-distance animation by frame interval
+    mouse = 'native',   -- Set to 'smooth' to intercept mouse scrolling
   },
-  -- 传 table 可透传子模块配置
+  -- Tables are forwarded to their modules:
   -- bigfile = { size_threshold = 1024 * 500 },
 })
 ```
