@@ -42,7 +42,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 
 | Module | Description |
 |---|---|
-| `vv-utils.path` | Path normalization, project-root discovery, and current-directory lookup |
+| `vv-utils.path` | Path normalization, middle-segment collapsing, project-root discovery, and current-directory lookup |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
 | `vv-utils.fs` | Filesystem primitives: recursive create/delete/copy, EXDEV-safe rename, full reads, and atomic writes |
 | `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
@@ -85,6 +85,7 @@ Important details:
 ```lua
 local path = require('vv-utils.path')
 path.get_root()
+path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 })
 
 local utils = require('vv-utils')
 utils.path.get_root()
