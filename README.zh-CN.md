@@ -50,6 +50,7 @@
 | `vv-utils.lsp.code_actions` | `collect_document_fixes(opts)` 收集安全事务；`fix_document(opts)` 直接应用整文件或指定行的可编辑修复 |
 | `vv-utils.lsp.fix` | `file(opts)` / `files(paths, opts)` 等待多 LSP 修复收敛并原子应用 |
 | `vv-utils.lsp.file_operations` | 收集 `workspace/willRenameFiles` 编辑并发送 `workspace/didRenameFiles`；不负责文件移动或业务事务 |
+| `vv-utils.history` | 按字段隔离的输入历史：草稿恢复、去重、条数限制，以及可选的 0600 原子持久化 |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
@@ -81,7 +82,18 @@ path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 
 local utils = require('vv-utils')
 utils.path.get_root()
 utils.yaml.parse(...)
+
+local history = require('vv-utils.history').new({
+  name = 'my-plugin',
+  max_entries = 50,
+  persist = true,
+})
+history:record('search', 'needle')
+history:previous('search', 'current draft')
+history:next('search', 'needle')
 ```
+
+持久化实例默认写入 `stdpath('state')/<name>/history.json`。每次写入前会合并磁盘上的最新记录，再通过同目录临时文件原子替换；该机制用于降低多个 Neovim 旧快照互相覆盖的概率，不提供带锁的进程间事务。
 
 ## 配置
 

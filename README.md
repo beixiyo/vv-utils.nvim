@@ -51,6 +51,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.lsp.code_actions` | Collect safe document-fix transactions or apply editable fixes to a document or line range |
 | `vv-utils.lsp.fix` | Apply converged multi-LSP fixes atomically to one file or multiple paths |
 | `vv-utils.lsp.file_operations` | Collect `workspace/willRenameFiles` edits and send `workspace/didRenameFiles`; it does not move files |
+| `vv-utils.history` | Per-field input history with draft restoration, deduplication, bounded entries, and optional 0600 atomic persistence |
 | `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
 | `vv-utils.hl` | Batch highlight registration with `default=true`, ColorScheme refresh, and foreground lookup |
 | `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
@@ -77,6 +78,7 @@ Important details:
 - `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
 - `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
 - `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
+- `history.new({ name, max_entries?, persist?, path? })` creates an isolated instance; persistent writes merge the latest on-disk records before atomic replacement but do not provide inter-process locking
 - `drop.register(handler)` receives `fun(paths, pos)`, while `drop.on_drag(cb)` subscribes to movement and leave events
 - Kitty DnD requires Kitty 0.47 or newer and does not operate through tmux
 
@@ -90,6 +92,15 @@ path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 
 local utils = require('vv-utils')
 utils.path.get_root()
 utils.yaml.parse(...)
+
+local history = require('vv-utils.history').new({
+  name = 'my-plugin',
+  max_entries = 50,
+  persist = true,
+})
+history:record('search', 'needle')
+history:previous('search', 'current draft')
+history:next('search', 'needle')
 ```
 
 ## Configuration

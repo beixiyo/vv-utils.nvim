@@ -7,6 +7,7 @@
 --   git         git status 索引 + porcelain 解析 + ignored 命中判断（异步）
 --   diagnostics 按路径聚合所有 loaded buffer 的 LSP 诊断计数
 --   lsp         LSP Code Action、WorkspaceEdit 与文件操作协议原语
+--   history     按字段隔离的输入历史（草稿恢复 + 可选 0600 原子持久化）
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   mouse       nofile 面板鼠标防护（block_visual_drag：禁拖拽/多击含跨窗口拖入进 visual）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
