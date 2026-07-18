@@ -10,7 +10,7 @@ Want my Neovim config? See <a href="https://github.com/beixiyo/dotfiles">dotfile
 
 <br />
 
-<img src="https://img.shields.io/badge/Neovim-0.10+-57A143?style=flat-square&logo=neovim&logoColor=white" alt="Requires Neovim 0.10+" />
+<img src="https://img.shields.io/badge/Neovim-0.12+-57A143?style=flat-square&logo=neovim&logoColor=white" alt="Requires Neovim 0.12+" />
 <img src="https://img.shields.io/badge/Lua-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua" />
 <img src="https://img.shields.io/badge/zero_Lua_deps-✓-2ea44f?style=flat-square" alt="Zero Lua Dependencies" />
 
@@ -110,6 +110,6 @@ require('vv-utils').setup({
     mouse = 'native',   -- Set to 'smooth' to intercept mouse scrolling
   },
   -- Tables are forwarded to their modules:
-  -- bigfile = { size_threshold = 1024 * 500 },
+  -- bigfile = { size = 1024 * 500 },
 })
 ```
