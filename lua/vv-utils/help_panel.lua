@@ -22,12 +22,21 @@ local ns = vim.api.nvim_create_namespace('vv-utils.help_panel')
 local function format_lhs(lhs)
   if lhs == '<CR>' then return '↵' end
 
-  return lhs
-    :gsub('^<C%-', '^')
-    :gsub('^<M%-', '⌥')
-    :gsub('^<S%-', '⇧')
-    :gsub('>$', '')
-    :gsub('(%a)$', string.upper)
+  local key = lhs:match('^<(.*)>$') or lhs
+  local prefixes = { C = '^', M = '⌥', A = '⌥', S = '⇧' }
+  local hints = {}
+
+  while true do
+    local modifier, rest = key:match('^([CMSA])%-(.+)$')
+    if not modifier then break end
+
+    hints[#hints + 1] = prefixes[modifier]
+    key = rest
+  end
+
+  if #key == 1 then key = key:upper() end
+
+  return table.concat(hints) .. key
 end
 
 hl.register('vv-utils.help_panel.hl', {

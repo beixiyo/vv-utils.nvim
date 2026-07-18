@@ -103,7 +103,7 @@ local function setup_decorations(buf, opts, busy_ctx)
         { ' ',                        'VVPromptHint' },
         { md.icon .. ' ' .. md.label, md.hl },
         { '  ',                       'VVPromptHint' },
-        { '<S-Tab>',                  'VVPromptIcon' },
+        { '⇧Tab',                     'VVPromptIcon' },
         { ' switch',                  'VVPromptHint' },
       }
     else
@@ -368,4 +368,3 @@ end
 ---@field debounce?      integer|fun(): integer       防抖毫秒（支持自适应函数）@default 30
 ---@field spinner?       VVPromptSpinnerOpts          提供则启用 busy spinner（配合 handle.set_busy）
 return M
-
