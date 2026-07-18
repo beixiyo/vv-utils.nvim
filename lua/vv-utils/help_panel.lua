@@ -19,6 +19,17 @@ local hl = require('vv-utils.hl')
 local M = {}
 local ns = vim.api.nvim_create_namespace('vv-utils.help_panel')
 
+local function format_lhs(lhs)
+  if lhs == '<CR>' then return '↵' end
+
+  return lhs
+    :gsub('^<C%-', '^')
+    :gsub('^<M%-', '⌥')
+    :gsub('^<S%-', '⇧')
+    :gsub('>$', '')
+    :gsub('(%a)$', string.upper)
+end
+
 hl.register('vv-utils.help_panel.hl', {
   VVHelpTitle    = { link = 'Title' },
   VVHelpCategory = { link = 'Type' },
@@ -129,7 +140,8 @@ function M.open(opts)
   local key_w = 0
   for _, rows in pairs(by_cat) do
     for _, r in ipairs(rows) do
-      if #r.lhs > key_w then key_w = #r.lhs end
+      r.display_lhs = format_lhs(r.lhs)
+      key_w = math.max(key_w, vim.fn.strdisplaywidth(r.display_lhs))
     end
   end
   key_w = math.max(key_w, 4)
@@ -160,14 +172,11 @@ function M.open(opts)
       line = line .. icon .. string.rep(' ', icon_pad) .. ' '
       local icon_end = icon_start + #icon
 
-      -- Neovim 对 <C-x> 统一存为 <C-X>；Ctrl 不区分大小写，还原为小写显示
-      -- <M-> 和 <S-> 保持原样（Alt/Shift 区分大小写）
-      local display_lhs = r.lhs:gsub('(<C%-)(%u)(>)', function(pre, ch, post)
-        return pre .. ch:lower() .. post
-      end)
+      local display_lhs = r.display_lhs
       local key_start = #line
-      line = line .. string.format('%-' .. key_w .. 's', display_lhs)
-      local key_end = key_start + #r.lhs
+      local key_pad = key_w - vim.fn.strdisplaywidth(display_lhs)
+      line = line .. display_lhs .. string.rep(' ', key_pad)
+      local key_end = key_start + #display_lhs
 
       local arrow_start = #line
       line = line .. '  → '
@@ -190,7 +199,7 @@ function M.open(opts)
   end
 
   lines[#lines + 1] = ''
-  local footer = '  q / <Esc> to close'
+  local footer = '  Close Q / Esc'
   lines[#lines + 1] = footer
   add_hl(#lines - 1, 0, #footer, 'VVHelpFooter')
 
