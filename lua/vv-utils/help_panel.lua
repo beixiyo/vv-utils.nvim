@@ -25,16 +25,21 @@ local function format_lhs(lhs)
   local key = lhs:match('^<(.*)>$') or lhs
   local prefixes = { C = '^', M = '⌥', A = '⌥', S = '⇧' }
   local hints = {}
+  local has_ctrl = false
+  local has_shift = false
 
   while true do
     local modifier, rest = key:match('^([CMSA])%-(.+)$')
     if not modifier then break end
 
     hints[#hints + 1] = prefixes[modifier]
+    has_ctrl = has_ctrl or modifier == 'C'
+    has_shift = has_shift or modifier == 'S'
     key = rest
   end
 
-  if #key == 1 then key = key:upper() end
+  -- Neovim 会把 <C-x> 的 lhs 规范化为 <C-X>；Ctrl 不区分大小写，恢复为小写展示
+  if has_ctrl and not has_shift and #key == 1 then key = key:lower() end
 
   return table.concat(hints) .. key
 end
@@ -208,7 +213,7 @@ function M.open(opts)
   end
 
   lines[#lines + 1] = ''
-  local footer = '  Close Q / Esc'
+  local footer = '  Close q / Esc'
   lines[#lines + 1] = footer
   add_hl(#lines - 1, 0, #footer, 'VVHelpFooter')
 
