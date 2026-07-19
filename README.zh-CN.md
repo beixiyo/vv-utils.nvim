@@ -43,6 +43,7 @@
 |------|------|
 | `vv-utils.path` | `norm(p)` 规范化路径、`collapse_middle(path, opts?)` 折叠中间层级、`get_root(buf?)` 向上找项目根、`get_cwd()` |
 | `vv-utils.glob` | VS Code 风格搜索 glob：按顶层逗号拆分，并编译为根锚定或任意深度的 ripgrep pattern |
+| `vv-utils.path_completion` | 不绑定 UI 的路径候选：支持光标所在 glob 分段、`!` / `./` 保留、纯目录输入，并通过 `fd` 补全任意深度的未锚定片段 |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
 | `vv-utils.fs_transaction` | 可实例化的文件内容事务：全量快照校验、逐文件原子写入、失败补偿回滚与最近一次撤回 |

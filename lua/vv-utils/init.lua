@@ -2,6 +2,7 @@
 -- 子模块：
 --   path        路径工具
 --   glob        VS Code 风格搜索 glob 拆分与 ripgrep pattern 编译
+--   path_completion 基于 cwd 的 glob / 目录路径候选（不绑定具体输入 UI）
 --   yaml        轻量解析
 --   ui_window   UI buffer 的窗口 chrome 管理
 --   fs          fs 原语（mkdir_p / create_file / delete / rename / copy / unique_dest / sync_buffers）
