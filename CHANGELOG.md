@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 - 2026-07-19
+
+### Changed
+
+- 将大型工具按领域拆分为目录模块，并通过各领域的 `init.lua` 统一公开 API
+- 文件事务并入 `vv-utils.fs.new_transaction()`，删除独立的 `vv-utils.fs_transaction` 入口
+
 ## 0.2.1 - 2026-07-19
 
 ### Added

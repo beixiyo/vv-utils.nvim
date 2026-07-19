@@ -4,7 +4,7 @@
 local repo = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 vim.opt.runtimepath:prepend(repo)
 
-local FileTransaction = require('vv-utils.fs_transaction')
+local fs = require('vv-utils.fs')
 
 local passed = 0
 local failed = 0
@@ -25,7 +25,7 @@ local function assert_eq(actual, expected)
 end
 
 local function memory_transaction(files, write)
-  return FileTransaction.new({
+  return fs.new_transaction({
     read = function(path) return assert(files[path], 'missing ' .. path) end,
     write = write or function(path, content) files[path] = content end,
     check_modified_buffers = false,
@@ -172,7 +172,6 @@ test('补偿回滚不完整后锁定当前实例', function()
 end)
 
 test('未保存 buffer 阻止默认文件事务', function()
-  local fs = require('vv-utils.fs')
   local path = vim.fn.tempname()
   fs.write_all(path, 'disk\n')
 
@@ -181,7 +180,7 @@ test('未保存 buffer 阻止默认文件事务', function()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'unsaved' })
   vim.bo[buf].modified = true
 
-  local transaction = FileTransaction.new()
+  local transaction = fs.new_transaction()
   local ok = transaction:apply({
     { path = path, old = 'disk\n', new = 'new\n' },
   })

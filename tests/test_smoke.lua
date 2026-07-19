@@ -84,8 +84,8 @@ test('diagnostics.lua: 不含旧名 VVExplorerDiag', function()
   end
 end)
 
--- 3. git.lua: 行级 diff 解析
-test('git.lua: parse_diff_lines 行级 A/C/D', function()
+-- 3. Git 行级 diff 解析
+test('git: parse_diff_lines 行级 A/C/D', function()
   package.loaded['vv-utils.git'] = nil
   local git = require('vv-utils.git')
   local got = git.parse_diff_lines(table.concat({
@@ -108,7 +108,7 @@ test('git.lua: parse_diff_lines 行级 A/C/D', function()
   end
 end)
 
-test('git.lua: diff_lines 区分 worktree 与 staged，并支持旧侧删除行', function()
+test('git: diff_lines 区分 worktree 与 staged，并支持旧侧删除行', function()
   local git = require('vv-utils.git')
   local tmp_dir = vim.fn.tempname()
   vim.fn.mkdir(tmp_dir, 'p')
@@ -151,7 +151,7 @@ test('git.lua: diff_lines 区分 worktree 与 staged，并支持旧侧删除行'
   vim.fn.delete(tmp_dir, 'rf')
 end)
 
-test('git.lua: diff_line_sets 同时返回 staged / unstaged 并映射到 worktree', function()
+test('git: diff_line_sets 同时返回 staged / unstaged 并映射到 worktree', function()
   local git = require('vv-utils.git')
   local tmp_dir = vim.fn.tempname()
   vim.fn.mkdir(tmp_dir, 'p')
@@ -195,8 +195,8 @@ test('hl.lua: apply() 不修改原始 specs', function()
   vim.api.nvim_set_hl(0, 'TestHlNoMutate', {})
 end)
 
--- 5. fs.lua: 原子写入
-test('fs.lua: write_all 原子写入', function()
+-- 5. fs 原子写入
+test('fs: write_all 原子写入', function()
   package.loaded['vv-utils.fs'] = nil
   local fs = require('vv-utils.fs')
   local tmp_dir = vim.fn.tempname()
@@ -301,7 +301,7 @@ test('editor.copy_path: 无路径时返回 nil', function()
   assert(got == nil, '空 buffer 应返回 nil, 实际: ' .. tostring(got))
 end)
 
--- 8. scroll.lua
+-- 8. scroll
 test('scroll.setup: 默认滚动时长配置', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
@@ -424,6 +424,68 @@ test('scroll.with_auto_suppressed: 即时跳转不回弹为自动动画', functi
   assert(ok, '即时跳转回调执行失败')
   assert(immediate_topline == 101, '即时跳转后 topline 应为 101，实际: ' .. immediate_topline)
   assert(final_topline == 101, '即时跳转不应回弹或启动自动动画，实际: ' .. final_topline)
+end)
+
+test('scroll.auto: scrollbind 窗口保持原生同步', function()
+  package.loaded['vv-utils.scroll'] = nil
+  local scroll = require('vv-utils.scroll')
+  scroll.setup({
+    frame_ms = 20,
+    auto_duration = 400,
+    auto = true,
+    auto_min_lines = 2,
+    auto_max_steps = 40,
+  })
+
+  local first_win = vim.api.nvim_get_current_win()
+  local previous_buf = vim.api.nvim_win_get_buf(first_win)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = {}
+  for i = 1, 200 do lines[i] = tostring(i) end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_win_set_buf(first_win, buf)
+  vim.cmd('vsplit')
+  local second_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(second_win, buf)
+
+  for _, win in ipairs({ first_win, second_win }) do
+    vim.wo[win].scrollbind = true
+    vim.wo[win].scrolloff = 0
+    scroll.with_auto_suppressed(win, function()
+      vim.api.nvim_win_call(win, function()
+        vim.api.nvim_win_set_cursor(0, { 1, 0 })
+        vim.fn.winrestview({ topline = 1, lnum = 1, col = 0 })
+      end)
+    end)
+  end
+
+  vim.api.nvim_set_current_win(first_win)
+  vim.cmd('normal! 80Gzt')
+  vim.cmd.redraw()
+  vim.wait(150, function()
+    return vim.api.nvim_win_call(second_win, function()
+      return vim.fn.winsaveview().topline
+    end) == 80
+  end, 5)
+
+  local first_topline = vim.api.nvim_win_call(first_win, function()
+    return vim.fn.winsaveview().topline
+  end)
+  local second_topline = vim.api.nvim_win_call(second_win, function()
+    return vim.fn.winsaveview().topline
+  end)
+
+  vim.wo[first_win].scrollbind = false
+  vim.wo[second_win].scrollbind = false
+  vim.api.nvim_set_current_win(second_win)
+  vim.cmd('close')
+  vim.api.nvim_set_current_win(first_win)
+  vim.api.nvim_win_set_buf(first_win, previous_buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
+
+  assert(first_topline == 80, '触发窗口不应被自动动画回拉，实际: ' .. first_topline)
+  assert(second_topline == 80, 'scrollbind 窗口应原生同步到 80，实际: ' .. second_topline)
 end)
 
 test('scroll.window: key_duration 可独立限制键盘动画时长', function()
@@ -685,18 +747,6 @@ test('scroll.with_view_animation: 包装显式视口跳转', function()
   vim.api.nvim_buf_delete(buf, { force = true })
 
   assert(done, '显式跳转动画未在 1000ms 内完成，当前 topline=' .. tostring(view.topline))
-end)
-
-test('scroll.auto: scrollbind 窗口跳过自动动画', function()
-  local src = table.concat(vim.fn.readfile(plugin_root .. '/lua/vv-utils/scroll.lua'), '\n')
-  local guard_at = src:find("nvim_get_option_value%('scrollbind'", 1)
-  local busy_at = src:find('if auto_busy%[win_id%] then', 1)
-
-  assert(guard_at, 'WinScrolled handler 应检查 scrollbind')
-  assert(busy_at and guard_at < busy_at,
-    'scrollbind guard 必须早于 auto_busy/start_auto_scroll 分支')
-  assert(src:find('auto_state%[win_id%]%s*=%s*new_state', guard_at),
-    '跳过自动动画前仍应更新 auto_state，避免状态滞后')
 end)
 
 -- 输出结果

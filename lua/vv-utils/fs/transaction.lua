@@ -3,11 +3,12 @@
 -- 每个实例独立保存最近一次成功事务。写入前校验全部快照，逐文件写入失败时
 -- 反向补偿已触碰文件；补偿不完整后锁定实例，避免继续操作未知状态
 
-local fs = require('vv-utils.fs')
+local io = require('vv-utils.fs.io')
+local fs_path = require('vv-utils.fs.path')
 
 local M = {}
 
----@class VVUtilsFileTransaction
+---@class vv-utils.fs.Transaction
 local Transaction = {}
 Transaction.__index = Transaction
 
@@ -16,18 +17,18 @@ Transaction.__index = Transaction
 function Transaction:_modified_buffer(path)
   if not self.check_modified_buffers then return end
 
-  local real = fs.realpath(path)
+  local real = fs_path.realpath(path)
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(buf)
       and vim.bo[buf].modified
-      and fs.realpath(vim.api.nvim_buf_get_name(buf)) == real
+      and fs_path.realpath(vim.api.nvim_buf_get_name(buf)) == real
     then
       return buf
     end
   end
 end
 
----@param entries VVUtilsFileTransactionEntry[]
+---@param entries vv-utils.fs.TransactionEntry[]
 ---@param field 'old'|'new'
 ---@return boolean, string?
 function Transaction:_validate(entries, field)
@@ -48,7 +49,7 @@ function Transaction:_validate(entries, field)
   return true
 end
 
----@param entry VVUtilsFileTransactionEntry
+---@param entry vv-utils.fs.TransactionEntry
 ---@param from_field 'old'|'new'
 ---@param to_field 'old'|'new'
 function Transaction:_write_verified(entry, from_field, to_field)
@@ -64,7 +65,7 @@ function Transaction:_write_verified(entry, from_field, to_field)
   end
 end
 
----@param attempted VVUtilsFileTransactionEntry[]
+---@param attempted vv-utils.fs.TransactionEntry[]
 ---@param from_field 'old'|'new'
 ---@param to_field 'old'|'new'
 ---@return string[] failures
@@ -91,7 +92,7 @@ function Transaction:_rollback(attempted, from_field, to_field)
   return failures
 end
 
----@param entries VVUtilsFileTransactionEntry[]
+---@param entries vv-utils.fs.TransactionEntry[]
 ---@return boolean ok
 ---@return string? error
 ---@return boolean? touched
@@ -176,14 +177,14 @@ function Transaction:can_undo()
 end
 
 ---创建状态互相隔离的文件事务实例
----@param opts? VVUtilsFileTransactionOptions
----@return VVUtilsFileTransaction
+---@param opts? vv-utils.fs.TransactionOptions
+---@return vv-utils.fs.Transaction
 function M.new(opts)
   opts = opts or {}
 
   return setmetatable({
-    read = opts.read or fs.read_all,
-    write = opts.write or fs.write_all,
+    read = opts.read or io.read_all,
+    write = opts.write or io.write_all,
     check_modified_buffers = opts.check_modified_buffers ~= false,
     last = nil,
     busy = false,
@@ -191,12 +192,12 @@ function M.new(opts)
   }, Transaction)
 end
 
----@class VVUtilsFileTransactionEntry
+---@class vv-utils.fs.TransactionEntry
 ---@field path string 文件路径 @default none
 ---@field old string 事务前的完整内容 @default none
 ---@field new string 事务后的完整内容 @default none
 
----@class VVUtilsFileTransactionOptions
+---@class vv-utils.fs.TransactionOptions
 ---@field read? fun(path: string): string 文件读取器 @default vv-utils.fs.read_all
 ---@field write? fun(path: string, content: string) 文件写入器 @default vv-utils.fs.write_all
 ---@field check_modified_buffers? boolean 拒绝覆盖未保存的 Neovim buffer @default true

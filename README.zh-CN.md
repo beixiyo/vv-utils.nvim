@@ -45,9 +45,8 @@
 | `vv-utils.glob` | VS Code 风格搜索 glob：按顶层逗号拆分，并编译为根锚定或任意深度的 ripgrep pattern |
 | `vv-utils.path_completion` | 不绑定 UI 的路径候选：支持光标所在 glob 分段、`!` / `./` 保留、纯目录输入，并通过 `fd` 补全任意深度的未锚定片段 |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
-| `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
-| `vv-utils.fs_transaction` | 可实例化的文件内容事务：全量快照校验、逐文件原子写入、失败补偿回滚与最近一次撤回 |
-| `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`register_hl()` 注册 VSCode Dark+ 调色板 |
+| `vv-utils.fs` | fs 原语，以及提供快照校验、失败补偿回滚与单层撤回的 `new_transaction()` |
+| `vv-utils.git` | 异步 git 索引：`index(root, cb)` 返回状态、忽略路径、`is_ignored` 与重命名映射；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`symbol_for()` / `register_hl()` 提供共享装饰 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.lsp.workspace_edit` | 多客户端 WorkspaceEdit 规范化、去重、冲突检查、状态快照、原子应用与回滚 |
 | `vv-utils.lsp.code_actions` | `collect_document_fixes(opts)` 收集安全事务；`fix_document(opts)` 直接应用整文件或指定行的可编辑修复 |
@@ -69,7 +68,7 @@
 | `vv-utils.download` | `file(opts, callback)` 跨平台异步下载文件；Unix 优先 `curl` / `wget`，Windows 优先 PowerShell 并显式检查 `curl.exe`，避免混淆 PowerShell 的 `curl` alias；缺少命令时返回可操作的结构化错误 |
 | `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）。两条路统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste` 从 bracketed paste 检测路径（`pos=nil`，无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47 且脱 tmux）** 带落点坐标 + 拖拽事件（`pos={x,y,op}`）。`register(handler)` 签名 `fun(paths, pos)`；`on_drag(cb)` 订阅移动/离开（实时高亮用）；内置默认 handler（Normal 下 `:edit`）；`setup({ kitty_dnd=false })` 关协议 |
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
-| `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_line_trailing`（需 `setup()` 启用） |
+| `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_trailing`（命令需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
 | `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)` / `with_auto_suppressed(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
 

@@ -46,8 +46,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.glob` | VS Code-style search glob splitting and expansion into root-anchored or any-depth ripgrep patterns |
 | `vv-utils.path_completion` | UI-agnostic path candidates for comma-separated search globs and directory-only inputs; unanchored fragments can resolve at any depth via `fd` |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
-| `vv-utils.fs` | Filesystem primitives: recursive create/delete/copy, EXDEV-safe rename, `read_all`, and atomic `write_all` |
-| `vv-utils.fs_transaction` | Isolated file-content transactions with snapshot validation, compensating rollback, and one-level undo |
+| `vv-utils.fs` | Filesystem primitives plus `new_transaction()` for snapshot validation, compensating rollback, and one-level undo |
 | `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
 | `vv-utils.diagnostics` | Diagnostics grouped by path, highest-severity symbols, and formatted diagnostics for line ranges |
 | `vv-utils.lsp.workspace_edit` | Multi-client WorkspaceEdit normalization, deduplication, conflict checks, snapshots, atomic apply, and rollback |
@@ -76,7 +75,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 
 Important details:
 
-- `git.index(root, cb)` returns `status_map`, `is_ignored`, and symbol helpers
+- `git.index(root, cb)` returns status and ignored-path maps, `is_ignored`, and `rename_map`; symbols remain module-level helpers
 - `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
 - `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
 - `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
