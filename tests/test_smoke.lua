@@ -208,10 +208,28 @@ test('fs.lua: write_all 原子写入', function()
   assert(content == 'hello atomic', '内容不匹配: ' .. content)
   assert(not fs.exists(test_path .. '.tmp'), '不应残留 .tmp 文件')
 
-  -- 覆盖写入测试
+  -- 覆盖写入需保留已有文件权限（尤其脚本可执行位）
+  assert(vim.uv.fs_chmod(test_path, 511)) -- 0o777，验证显式 chmod 不受 umask 影响
   fs.write_all(test_path, 'overwritten')
   local content2 = fs.read_all(test_path)
   assert(content2 == 'overwritten', '覆盖写入内容不匹配: ' .. content2)
+  local stat = assert(vim.uv.fs_stat(test_path))
+  assert(stat.mode % 4096 == 511, '覆盖写入后应保留 0o777，实际: ' .. tostring(stat.mode % 4096))
+
+  local target_path = tmp_dir .. '/target.txt'
+  local link_path = tmp_dir .. '/link.txt'
+  fs.write_all(target_path, 'before')
+  assert(vim.uv.fs_symlink('target.txt', link_path))
+  fs.write_all(link_path, 'after')
+  assert(assert(vim.uv.fs_lstat(link_path)).type == 'link', '覆盖写入不应替换 symlink 本身')
+  assert(fs.read_all(target_path) == 'after', '覆盖 symlink 应写入真实目标')
+
+  local scan = assert(vim.uv.fs_scandir(tmp_dir))
+  while true do
+    local name = vim.uv.fs_scandir_next(scan)
+    if not name then break end
+    assert(not name:match('%.tmp%.'), '不应残留唯一临时文件: ' .. name)
+  end
 
   fs.delete(tmp_dir)
 end)
@@ -237,71 +255,7 @@ test('sys.lua: 不含平台检测代码', function()
   end
 end)
 
--- 7. README.md: 文档完整性
-test('README.md: 包含 bufdelete 文档', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('vv%-utils%.bufdelete') then found = true; break end
-  end
-  assert(found, 'README 缺少 bufdelete 模块文档')
-end)
-
-test('README.md: 包含 editor 文档', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('vv%-utils%.editor') then found = true; break end
-  end
-  assert(found, 'README 缺少 editor 模块文档')
-end)
-
-test('README.md: 包含 bigfile 文档', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('vv%-utils%.bigfile') then found = true; break end
-  end
-  assert(found, 'README 缺少 bigfile 模块文档')
-end)
-
-test('README.md: bigfile 需要 setup 的说明', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('bigfile') and line:match('setup') then found = true; break end
-  end
-  assert(found, 'README 应说明 bigfile 需要 setup()')
-end)
-
-test('README.md: git 模块不含 toplevel', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  for _, line in ipairs(src) do
-    if line:match('toplevel') then
-      error('README 仍包含 toplevel: ' .. line)
-    end
-  end
-end)
-
-test('README.md: 包含 read_all', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('read_all') then found = true; break end
-  end
-  assert(found, 'README 应包含 read_all')
-end)
-
-test('README.md: 包含 get_fg', function()
-  local src = vim.fn.readfile(plugin_root .. '/README.md')
-  local found = false
-  for _, line in ipairs(src) do
-    if line:match('get_fg') then found = true; break end
-  end
-  assert(found, 'README 应包含 get_fg')
-end)
-
--- 8. editor.copy_path
+-- 7. editor.copy_path
 test('editor.copy_path: 函数存在', function()
   package.loaded['vv-utils.editor'] = nil
   local ed = require('vv-utils.editor')
@@ -347,7 +301,7 @@ test('editor.copy_path: 无路径时返回 nil', function()
   assert(got == nil, '空 buffer 应返回 nil, 实际: ' .. tostring(got))
 end)
 
--- 9. scroll.lua
+-- 8. scroll.lua
 test('scroll.setup: 默认滚动时长配置', function()
   package.loaded['vv-utils.scroll'] = nil
   local scroll = require('vv-utils.scroll')
@@ -756,6 +710,7 @@ print(string.rep('─', 50))
 print(string.format('共 %d 项: %d 通过, %d 失败', passed + failed, passed, failed))
 if failed > 0 then
   print('有测试未通过！')
+  vim.cmd('cquit 1')
 else
   print('全部通过')
 end

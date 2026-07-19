@@ -43,8 +43,10 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | Module | Description |
 |---|---|
 | `vv-utils.path` | Path normalization, middle-segment collapsing, project-root discovery, and current-directory lookup |
+| `vv-utils.glob` | VS Code-style search glob splitting and expansion into root-anchored or any-depth ripgrep patterns |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
-| `vv-utils.fs` | Filesystem primitives: recursive create/delete/copy, EXDEV-safe rename, full reads, and atomic writes |
+| `vv-utils.fs` | Filesystem primitives: recursive create/delete/copy, EXDEV-safe rename, `read_all`, and atomic `write_all` |
+| `vv-utils.fs_transaction` | Isolated file-content transactions with snapshot validation, compensating rollback, and one-level undo |
 | `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
 | `vv-utils.diagnostics` | Diagnostics grouped by path, highest-severity symbols, and formatted diagnostics for line ranges |
 | `vv-utils.lsp.workspace_edit` | Multi-client WorkspaceEdit normalization, deduplication, conflict checks, snapshots, atomic apply, and rollback |
@@ -53,7 +55,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.lsp.file_operations` | Collect `workspace/willRenameFiles` edits and send `workspace/didRenameFiles`; it does not move files |
 | `vv-utils.history` | Per-field input history with draft restoration, deduplication, bounded entries, and optional 0600 atomic persistence |
 | `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
-| `vv-utils.hl` | Batch highlight registration with `default=true`, ColorScheme refresh, and foreground lookup |
+| `vv-utils.hl` | Batch highlight `register` with `default=true` and ColorScheme refresh, plus `get_fg` lookup |
 | `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
 | `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
 | `vv-utils.bufdelete` | Layout-safe buffer deletion through `delete`, `all`, `other`, and `smart` |
@@ -66,7 +68,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.exec` | Resolve commands from shebangs or extension-specific executable runners and return pure `{ cmd, runner }` data |
 | `vv-utils.download` | Async cross-platform downloads via curl, wget, or PowerShell with structured actionable errors |
 | `vv-utils.drop` | Terminal path-drop dispatch through bracketed paste and optional Kitty OSC 72 coordinates and drag events |
-| `vv-utils.bigfile` | Opt-in large-file protection that disables expensive editor features |
+| `vv-utils.bigfile` | Opt-in large-file protection enabled through `setup()` that disables expensive editor features |
 | `vv-utils.format` | Opt-in Chinese/English spacing and trailing-whitespace cleanup commands |
 | `vv-utils.animate` | Timer-driven interpolation with linear, quadratic, and cubic easing functions |
 | `vv-utils.scroll` | Cross-window smooth scrolling, view animations, auto-animation suppression, and native or smooth mouse behavior |
@@ -88,6 +90,9 @@ Important details:
 local path = require('vv-utils.path')
 path.get_root()
 path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 })
+
+local glob = require('vv-utils.glob')
+glob.compile_rg_list('*.{ts,tsx}, ./packages/core/src/')
 
 local utils = require('vv-utils')
 utils.path.get_root()

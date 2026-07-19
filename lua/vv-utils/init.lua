@@ -1,9 +1,11 @@
 -- vv-utils facade
 -- 子模块：
 --   path        路径工具
+--   glob        VS Code 风格搜索 glob 拆分与 ripgrep pattern 编译
 --   yaml        轻量解析
 --   ui_window   UI buffer 的窗口 chrome 管理
 --   fs          fs 原语（mkdir_p / create_file / delete / rename / copy / unique_dest / sync_buffers）
+--   fs_transaction 多文件完整内容快照、校验、补偿回滚与单层撤回
 --   git         git status 索引 + porcelain 解析 + ignored 命中判断（异步）
 --   diagnostics 按路径聚合所有 loaded buffer 的 LSP 诊断计数
 --   lsp         LSP Code Action、WorkspaceEdit 与文件操作协议原语

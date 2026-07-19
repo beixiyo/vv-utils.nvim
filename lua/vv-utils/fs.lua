@@ -210,28 +210,79 @@ function M.read_all(path)
 end
 
 -- 原子地把整个文件内容写入 path；父目录自动 mkdir_p。失败 error
--- 先写临时文件再 rename，避免写入中途失败（磁盘满等）导致数据丢失
+-- 先写同目录唯一临时文件、完整写入并 fsync，再 rename 覆盖目标：
+--   * 同目录保证 rename 不跨文件系统
+--   * 唯一临时名避免多个 caller 争用固定 `.tmp`
+--   * 循环处理短写，且保留已有文件权限（尤其可执行位）
 ---@param path string
 ---@param content string
 function M.write_all(path, content)
   path = norm(path)
+  local link = uv.fs_lstat(path)
+  if link and link.type == 'link' then
+    local real, real_err = uv.fs_realpath(path)
+    if not real then error('resolve symlink failed: ' .. path .. ' — ' .. tostring(real_err)) end
+    path = norm(real)
+  end
   M.mkdir_p(dirname(path))
 
-  local tmp = path .. '.tmp'
-  local fd, err = uv.fs_open(tmp, 'w', 420)
+  local existing = uv.fs_stat(path)
+  local mode = existing and (existing.mode % 4096) or 420 -- 保留 0o7777 权限位；新文件默认 0o644
+  local stem = string.format('%s.tmp.%s.%s', path, tostring(uv.os_getpid()), tostring(uv.hrtime()))
+  local tmp, fd, open_err
 
-  if not fd then error('open failed: ' .. tmp .. ' — ' .. tostring(err)) end
-  local ok, werr = pcall(uv.fs_write, fd, content, 0)
+  for i = 1, 100 do
+    local candidate = stem .. '.' .. i
+    fd, open_err = uv.fs_open(candidate, 'wx', mode)
+    if fd then
+      tmp = candidate
+      break
+    end
+    if not tostring(open_err):match('EEXIST') then break end
+  end
 
-  uv.fs_close(fd)
-  if not ok then
-    uv.fs_unlink(tmp)
-    error('write failed: ' .. path .. ' — ' .. tostring(werr))
+  if not fd or not tmp then
+    error('open temp failed: ' .. path .. ' — ' .. tostring(open_err))
+  end
+
+  local chmod_ok, chmod_err = uv.fs_chmod(tmp, mode)
+  if not chmod_ok then
+    pcall(uv.fs_close, fd)
+    pcall(uv.fs_unlink, tmp)
+    error('chmod temp failed: ' .. path .. ' — ' .. tostring(chmod_err))
+  end
+
+  local function cleanup()
+    if fd then pcall(uv.fs_close, fd); fd = nil end
+    if tmp then pcall(uv.fs_unlink, tmp) end
+  end
+
+  local offset = 0
+  while offset < #content do
+    local written, werr = uv.fs_write(fd, content:sub(offset + 1), offset)
+    if not written or written <= 0 then
+      cleanup()
+      error('write failed: ' .. path .. ' — ' .. tostring(werr or 'short write'))
+    end
+    offset = offset + written
+  end
+
+  local synced, sync_err = uv.fs_fsync(fd)
+  if not synced then
+    cleanup()
+    error('fsync failed: ' .. path .. ' — ' .. tostring(sync_err))
+  end
+
+  local closed, close_err = uv.fs_close(fd)
+  fd = nil
+  if not closed then
+    cleanup()
+    error('close failed: ' .. path .. ' — ' .. tostring(close_err))
   end
 
   local rok, rerr = uv.fs_rename(tmp, path)
   if not rok then
-    uv.fs_unlink(tmp)
+    cleanup()
     error('rename failed: ' .. tmp .. ' → ' .. path .. ' — ' .. tostring(rerr))
   end
 end

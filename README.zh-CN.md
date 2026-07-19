@@ -42,8 +42,10 @@
 | 模块 | 说明 |
 |------|------|
 | `vv-utils.path` | `norm(p)` 规范化路径、`collapse_middle(path, opts?)` 折叠中间层级、`get_root(buf?)` 向上找项目根、`get_cwd()` |
+| `vv-utils.glob` | VS Code 风格搜索 glob：按顶层逗号拆分，并编译为根锚定或任意深度的 ripgrep pattern |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语：`mkdir_p` / `create_file` / `delete`（递归）/ `rename`（EXDEV 降级）/ `copy`（递归）/ `read_all` / `write_all`（原子写入） |
+| `vv-utils.fs_transaction` | 可实例化的文件内容事务：全量快照校验、逐文件原子写入、失败补偿回滚与最近一次撤回 |
 | `vv-utils.git` | 异步 git 索引：`index(root, cb)` → `{ status_map, is_ignored, symbol_for }`；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`register_hl()` 注册 VSCode Dark+ 调色板 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.lsp.workspace_edit` | 多客户端 WorkspaceEdit 规范化、去重、冲突检查、状态快照、原子应用与回滚 |
@@ -77,6 +79,9 @@
 local path = require('vv-utils.path')
 path.get_root()
 path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 })
+
+local glob = require('vv-utils.glob')
+glob.compile_rg_list('*.{ts,tsx}, ./packages/core/src/')
 
 -- 或走 facade
 local utils = require('vv-utils')
