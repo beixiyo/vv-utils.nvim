@@ -169,15 +169,18 @@ end
 
 ---准备无副作用的 WorkspaceEdit 事务
 ---@param edits { edit: table, encoding: string }[] 各客户端返回的编辑及其坐标编码
+---@param opts? { on_conflict?: 'error' | 'skip' } 范围重叠时的处理方式，默认 error
 ---@return table? transaction 已规范化、可安全应用的事务
 ---@return table? error
-function M.prepare(edits)
+function M.prepare(edits, opts)
+  local skip_conflicts = (opts or {}).on_conflict == 'skip'
   local states = {}
   local changes = {}
   local merged = { changes = {} }
   local ranges_by_uri = {}
   local seen_edits = {}
   local edits_count = 0
+  local skipped = {}
 
   for _, item in ipairs(edits) do
     local entries = edit_entries(item.edit)
@@ -216,29 +219,45 @@ function M.prepare(edits)
           }))
 
           if not seen_edits[fingerprint] then
+            local conflict = false
             for _, existing in ipairs(ranges_by_uri[entry.uri]) do
               if ranges_overlap(existing, normalized_range) then
-                return nil, {
-                  code = 'workspace_edit_conflict',
-                  message = 'Workspace edit contains overlapping changes for ' .. path,
-                }
+                conflict = true
+                break
               end
             end
 
-            seen_edits[fingerprint] = true
-            ranges_by_uri[entry.uri][#ranges_by_uri[entry.uri] + 1] = normalized_range
+            if conflict and not skip_conflicts then
+              return nil, {
+                code = 'workspace_edit_conflict',
+                message = 'Workspace edit contains overlapping changes for ' .. path,
+              }
+            end
 
-            local normalized_edit = vim.deepcopy(text_edit)
-            normalized_edit.range = normalized_range
-            normalized_edit.insert = nil
-            normalized_edit.replace = nil
+            -- skip 模式：与已接受编辑重叠的候选被丢弃，先到先得，其余照常应用
+            if conflict then
+              seen_edits[fingerprint] = true
+              skipped[#skipped + 1] = {
+                path = path,
+                range = normalized_range,
+                newText = text_edit.newText,
+              }
+            else
+              seen_edits[fingerprint] = true
+              ranges_by_uri[entry.uri][#ranges_by_uri[entry.uri] + 1] = normalized_range
 
-            merged.changes[entry.uri][#merged.changes[entry.uri] + 1] = normalized_edit
-            changes[path][#changes[path] + 1] = {
-              start = { line = range.start.line + 1, character = range.start.character + 1 },
-              ['end'] = { line = range['end'].line + 1, character = range['end'].character + 1 },
-            }
-            edits_count = edits_count + 1
+              local normalized_edit = vim.deepcopy(text_edit)
+              normalized_edit.range = normalized_range
+              normalized_edit.insert = nil
+              normalized_edit.replace = nil
+
+              merged.changes[entry.uri][#merged.changes[entry.uri] + 1] = normalized_edit
+              changes[path][#changes[path] + 1] = {
+                start = { line = range.start.line + 1, character = range.start.character + 1 },
+                ['end'] = { line = range['end'].line + 1, character = range['end'].character + 1 },
+              }
+              edits_count = edits_count + 1
+            end
           end
         end
       end
@@ -251,6 +270,8 @@ function M.prepare(edits)
     changes = changes,
     files_changed = vim.tbl_count(changes),
     edits_count = edits_count,
+    skipped = skipped,
+    skipped_count = #skipped,
   }
 end
 

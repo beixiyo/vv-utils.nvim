@@ -116,7 +116,7 @@ local function resolve_action(action, client, bufnr, timeout_ms)
 end
 
 ---收集文档或指定行的所有可编辑修复，并生成安全 WorkspaceEdit 事务
----@param opts { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean }
+---@param opts { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean, on_conflict?: 'error' | 'skip' }
 ---@return table? result
 ---@return table? error
 function M.collect_document_fixes(opts)
@@ -193,7 +193,7 @@ function M.collect_document_fixes(opts)
   if #edits == 0 then
     return nil, { code = 'no_quickfixes', message = 'No editable quickfix actions found' }
   end
-  local workspace, error = WorkspaceEdit.prepare(edits)
+  local workspace, error = WorkspaceEdit.prepare(edits, { on_conflict = opts.on_conflict })
   if not workspace then return nil, error end
   local names = vim.tbl_keys(client_names)
   table.sort(names)
@@ -206,7 +206,7 @@ function M.collect_document_fixes(opts)
 end
 
 ---收集、原子应用并保存文档修复
----@param opts? { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean, save?: boolean }
+---@param opts? { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean, save?: boolean, on_conflict?: 'error' | 'skip' }
 ---@return table result
 function M.fix_document(opts)
   local collected, error = M.collect_document_fixes(opts)
@@ -222,6 +222,8 @@ function M.fix_document(opts)
     actions_count = collected.actions_count,
     files_changed = collected.workspace.files_changed,
     edits_count = collected.workspace.edits_count,
+    skipped_count = collected.workspace.skipped_count,
+    skipped = collected.workspace.skipped,
   }
 end
 

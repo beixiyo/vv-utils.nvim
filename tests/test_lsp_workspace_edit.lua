@@ -49,5 +49,29 @@ local conflict, conflict_error = WorkspaceEdit.prepare({{
 }})
 assert(not conflict and conflict_error.code == 'workspace_edit_conflict')
 
+-- on_conflict = 'skip'：保留先到先得的编辑，重叠候选被跳过而非整体失败
+local skipping, skip_error = WorkspaceEdit.prepare({{
+  encoding = 'utf-16',
+  edit = { changes = { [uri] = {
+    {
+      range = { start = { line = 0, character = 0 }, ['end'] = { line = 0, character = 5 } },
+      newText = 'one',
+    },
+    {
+      range = { start = { line = 0, character = 3 }, ['end'] = { line = 0, character = 7 } },
+      newText = 'two',
+    },
+    {
+      range = { start = { line = 0, character = 6 }, ['end'] = { line = 0, character = 10 } },
+      newText = 'three',
+    },
+  } } },
+}}, { on_conflict = 'skip' })
+assert(skipping and not skip_error, vim.inspect(skip_error))
+assert(skipping.edits_count == 2 and skipping.skipped_count == 1, vim.inspect(skipping))
+local skip_applied, skip_apply_error = WorkspaceEdit.apply(skipping)
+assert(skip_applied, vim.inspect(skip_apply_error))
+assert(Fs.read_all(path) == 'one three\n', vim.inspect(Fs.read_all(path)))
+
 Fs.delete(tmp)
 print('vv-utils LSP workspace edit test: ok')
