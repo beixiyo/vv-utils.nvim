@@ -46,7 +46,7 @@
 | `vv-utils.path_completion` | 不绑定 UI 的路径候选：支持光标所在 glob 分段、`!` / `./` 保留、纯目录输入，并通过 `fd` 补全任意深度的未锚定片段 |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语，以及提供快照校验、失败补偿回滚与单层撤回的 `new_transaction()` |
-| `vv-utils.git` | 异步 git 索引：`index(root, cb)` 返回状态、忽略路径、`is_ignored` 与重命名映射；`diff_lines(path, cb, opts?)` 获取单侧行级标记；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`symbol_for()` / `register_hl()` 提供共享装饰 |
+| `vv-utils.git` | 异步 git 索引：`index(root, cb)` 返回状态、忽略路径、`is_ignored` 与重命名映射；`diff_lines(path, cb, opts?)` 获取单侧行级标记，支持 `from_rev` / `to_rev` 任意 revision 范围及 `side` 新旧侧投影；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`symbol_for()` / `register_hl()` 提供共享装饰 |
 | `vv-utils.diagnostics` | `collect_by_path()` 聚合诊断 → `{[path]={[severity]=count}}`；`symbol_for(counts)` 选最高 severity 的 `vv-icons` 图标与 `Diagnostic*` 高亮（无 `vv-icons` 时回退字母）；`format_range(buf, l1, l2?)` 行范围诊断 → `"Label: message"[]` |
 | `vv-utils.lsp.workspace_edit` | 多客户端 WorkspaceEdit 规范化、去重、冲突检查、状态快照、原子应用与回滚 |
 | `vv-utils.lsp.code_actions` | `collect_document_fixes(opts)` 收集安全事务；`fix_document(opts)` 直接应用整文件或指定行的可编辑修复 |

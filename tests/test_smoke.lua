@@ -108,7 +108,7 @@ test('git: parse_diff_lines 行级 A/C/D', function()
   end
 end)
 
-test('git: diff_lines 区分 worktree 与 staged，并支持旧侧删除行', function()
+test('git: diff_lines 支持 worktree、staged 与任意 revision source', function()
   local git = require('vv-utils.git')
   local tmp_dir = vim.fn.tempname()
   vim.fn.mkdir(tmp_dir, 'p')
@@ -147,6 +147,24 @@ test('git: diff_lines 区分 worktree 与 staged，并支持旧侧删除行', fu
   assert(next(worktree) == nil, '纯 staged 文件不应出现在 worktree diff')
   assert(staged[3] == 'A', 'staged 新增行应投影到 index 新侧第 3 行')
   assert(deleted[1] == 'D' and deleted[2] == 'D', 'staged 删除应投影到 HEAD 旧侧原始行')
+
+  vim.fn.system({ 'git', '-C', tmp_dir, 'commit', '-qm', 'second' })
+  local revision_new = diff('changed.txt', {
+    root = tmp_dir,
+    from_rev = 'HEAD^',
+    to_rev = 'HEAD',
+    side = 'new',
+  })
+  local revision_old = diff('removed.txt', {
+    root = tmp_dir,
+    from_rev = 'HEAD^',
+    to_rev = 'HEAD',
+    side = 'old',
+  })
+
+  assert(revision_new[3] == 'A', 'revision source 应把新增行投影到新侧')
+  assert(revision_old[1] == 'D' and revision_old[2] == 'D',
+    'revision source 应把删除行投影到旧侧')
 
   vim.fn.delete(tmp_dir, 'rf')
 end)

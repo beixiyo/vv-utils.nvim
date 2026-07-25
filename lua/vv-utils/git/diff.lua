@@ -190,7 +190,12 @@ function M.diff_lines(path, cb, opts)
     if not root then cb(nil); return end
 
     local cmd = { 'git', '-C', root, '--no-pager', 'diff' }
-    if mode == 'staged' then cmd[#cmd + 1] = '--cached' end
+    if opts.from_rev then
+      cmd[#cmd + 1] = opts.from_rev
+      if opts.to_rev then cmd[#cmd + 1] = opts.to_rev end
+    elseif mode == 'staged' then
+      cmd[#cmd + 1] = '--cached'
+    end
     vim.list_extend(cmd, { '-U0', '--no-color', '--no-ext-diff', '--', path })
 
     vim.system(cmd, { text = true }, vim.schedule_wrap(function(res)
@@ -220,6 +225,11 @@ end
 ---@class vv-utils.git.DiffLinesOpts
 ---@field root? string Git 仓库根；虚拟或已删除文件必须提供 @default nil
 ---@field mode? 'worktree'|'staged'  比较工作树与 index，或比较 index 与 HEAD @default 'worktree'
+---@field from_rev? string 任意 revision 比较的旧侧；提供后忽略 mode
+---@field to_rev? string 任意 revision 比较的新侧；省略时与工作树比较
 ---@field side? 'new'|'old'  将 hunk 行号投影到新侧或旧侧 @default 'new'
+
+---@class vv-utils.git.DiffSource: vv-utils.git.DiffLinesOpts
+---@field path string 相对 root 或绝对文件路径
 
 return M

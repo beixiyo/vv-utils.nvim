@@ -76,7 +76,8 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 Important details:
 
 - `git.index(root, cb)` returns status and ignored-path maps, `is_ignored`, and `rename_map`; symbols remain module-level helpers
-- `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
+- `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `opts.from_rev` / `opts.to_rev` select an arbitrary revision range and `opts.side` projects markers onto its old or new side
+- `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
 - `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
 - `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
 - `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
