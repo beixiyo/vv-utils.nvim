@@ -1,3 +1,4 @@
+---@diagnostic disable: assign-type-mismatch
 -- Kitty OSC 72 DnD 协议：探测、事件解析与 URI 数据拉取
 
 local M = {}
@@ -88,8 +89,11 @@ local function on_osc72(sequence, dispatch, fire_drag)
   elseif event_type == 'M' then
     fire_drag({ kind = 'leave' }) -- 落点确定，先清高亮
     pending = {
+---@diagnostic disable-next-line: assign-type-mismatch
       x = tonumber(key_values.x),
+---@diagnostic disable-next-line: assign-type-mismatch
       y = tonumber(key_values.y),
+---@diagnostic disable-next-line: assign-type-mismatch
       op = tonumber(key_values.o),
       chunks = {},
     }
@@ -125,6 +129,14 @@ function M.setup(dispatch, fire_drag)
   })
   -- 探测支持；opt-in 在收到 t=q 回应后进行。不支持的终端（含 tmux 内）无回应 → 静默回退
   tsend(OSC .. '72;t=q' .. ST)
+end
+
+function M.teardown()
+  if kitty_autocmd then
+    pcall(vim.api.nvim_del_autocmd, kitty_autocmd)
+    kitty_autocmd = nil
+  end
+  pending = nil
 end
 
 return M

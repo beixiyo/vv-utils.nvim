@@ -37,9 +37,13 @@ function M.read_all(file)
 end
 
 -- 同目录临时文件完整写入、fsync 后 rename 覆盖目标
+---@class VVFsWriteOptions
+---@field mode? integer  新文件权限；已有文件默认保留原权限 @default nil
+
 ---@param file string
 ---@param content string
-function M.write_all(file, content)
+---@param opts? VVFsWriteOptions
+function M.write_all(file, content, opts)
   file = norm(file)
   local link = uv.fs_lstat(file)
   if link and link.type == 'link' then
@@ -50,7 +54,7 @@ function M.write_all(file, content)
   operations.mkdir_p(dirname(file))
 
   local existing = uv.fs_stat(file)
-  local mode = existing and (existing.mode % 4096) or 420
+  local mode = opts and opts.mode or existing and (existing.mode % 4096) or 420
   local stem = string.format('%s.tmp.%s.%s', file, tostring(uv.os_getpid()), tostring(uv.hrtime()))
   local temporary, fd, open_error
 
@@ -113,9 +117,13 @@ function M.write_all(file, content)
   end
 end
 
+---@class VVFsLoadJsonOptions
+---@field strict? boolean  解码失败或根节点不是 table 时抛错 @default false
+
 ---@param source string 文件路径或 JSON 字符串
+---@param opts? VVFsLoadJsonOptions
 ---@return table
-function M.load_json(source)
+function M.load_json(source, opts)
   local raw = source
   if not source:match('^%s*[%[{]') then
     source = norm(source)
@@ -124,13 +132,17 @@ function M.load_json(source)
   end
 
   local ok, data = pcall(vim.json.decode, raw)
+  if opts and opts.strict and (not ok or type(data) ~= 'table') then
+    error('decode json failed: ' .. source .. ' — ' .. tostring(ok and 'root must be an object or array' or data))
+  end
   return ok and type(data) == 'table' and data or {}
 end
 
 ---@param file string JSON 文件完整路径，父目录不存在会自动创建
 ---@param data table
-function M.save_json(file, data)
-  M.write_all(norm(file), vim.json.encode(data))
+---@param opts? VVFsWriteOptions
+function M.save_json(file, data, opts)
+  M.write_all(norm(file), vim.json.encode(data), opts)
 end
 
 return M

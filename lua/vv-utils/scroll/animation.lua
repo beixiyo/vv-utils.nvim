@@ -6,6 +6,7 @@ local viewport = require('vv-utils.scroll.viewport')
 
 local uv = vim.uv or vim.loop
 local M = {}
+local stop_auto_scroll
 
 local function close_timer(timer)
   if not timer then return end
@@ -124,6 +125,7 @@ function M.window(win_id, lines)
   if lines == 0 then return end
 
   stop_scroll(win_id)
+  stop_auto_scroll(win_id)
 
   local config = state.config()
   if vim.g.neovide or not config.enabled then
@@ -238,6 +240,12 @@ local function restore_scroll_options(target_state)
 end
 
 local function finish_auto_scroll(win_id, to_state)
+  local active = state.runtime.auto_timer[win_id]
+  if active then
+    close_timer(active.timer)
+    state.runtime.auto_timer[win_id] = nil
+  end
+
   if vim.api.nvim_win_is_valid(win_id) then
     pcall(vim.api.nvim_win_call, win_id, function()
       vim.fn.winrestview(to_state.view)
@@ -247,6 +255,18 @@ local function finish_auto_scroll(win_id, to_state)
   end
 
   state.runtime.auto_busy[win_id] = nil
+end
+
+stop_auto_scroll = function(win_id)
+  local active = state.runtime.auto_timer[win_id]
+  if not active then
+    state.runtime.auto_busy[win_id] = nil
+    return
+  end
+
+  close_timer(active.timer)
+  state.runtime.auto_timer[win_id] = nil
+  finish_auto_scroll(win_id, active.target)
 end
 
 local function start_auto_scroll(from_state, to_state)
@@ -261,6 +281,7 @@ local function start_auto_scroll(from_state, to_state)
   end
 
   stop_scroll(win_id)
+  stop_auto_scroll(win_id)
   state.runtime.auto_busy[win_id] = true
 
   local limit = state.duration_limit('auto_duration')
@@ -271,6 +292,7 @@ local function start_auto_scroll(from_state, to_state)
   local key = from_state.view.topline < to_state.view.topline and '\5' or '\25'
   local step = 0
   local timer = assert(uv.new_timer())
+  state.runtime.auto_timer[win_id] = { timer = timer, target = to_state }
 
   local ok = pcall(vim.api.nvim_win_call, win_id, function()
     vim.wo.scrolloff = 0
@@ -280,6 +302,7 @@ local function start_auto_scroll(from_state, to_state)
   end)
   if not ok then
     close_timer(timer)
+    state.runtime.auto_timer[win_id] = nil
     state.runtime.auto_busy[win_id] = nil
     return
   end
@@ -290,6 +313,7 @@ local function start_auto_scroll(from_state, to_state)
       if not state.runtime.auto_busy[win_id]
           or not vim.api.nvim_win_is_valid(win_id) then
         close_timer(timer)
+        state.runtime.auto_timer[win_id] = nil
         state.runtime.auto_busy[win_id] = nil
         return
       end
@@ -371,7 +395,7 @@ function M.with_auto_suppressed(win_id, fn)
   if not win_id or not vim.api.nvim_win_is_valid(win_id) then return false end
 
   stop_scroll(win_id)
-  state.runtime.auto_busy[win_id] = nil
+  stop_auto_scroll(win_id)
   state.begin_manual_scroll()
 
   local ok = pcall(fn)
@@ -380,6 +404,18 @@ function M.with_auto_suppressed(win_id, fn)
   M.track_state(win_id)
 
   return ok
+end
+
+function M.cancel_all()
+  local windows = {}
+  for win_id in pairs(state.runtime.win_timer) do windows[win_id] = true end
+  for win_id in pairs(state.runtime.auto_timer) do windows[win_id] = true end
+
+  for win_id in pairs(windows) do
+    stop_scroll(win_id)
+    stop_auto_scroll(win_id)
+  end
+  state.reset_runtime()
 end
 
 ---@param args table

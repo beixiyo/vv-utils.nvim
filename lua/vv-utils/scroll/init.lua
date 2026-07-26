@@ -29,6 +29,11 @@ function M.setup(opts)
   M._install_scroll_keymaps()
 end
 
+function M.disable()
+  input.uninstall()
+  animation.cancel_all()
+end
+
 ---@return vv-utils.scroll.Opts
 function M.get_config()
   return state.get_config()

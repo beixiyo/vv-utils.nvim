@@ -53,12 +53,15 @@
 | `vv-utils.lsp.fix` | `file(opts)` / `files(paths, opts)` 等待多 LSP 修复收敛并原子应用 |
 | `vv-utils.lsp.file_operations` | 收集 `workspace/willRenameFiles` 编辑并发送 `workspace/didRenameFiles`；不负责文件移动或业务事务 |
 | `vv-utils.history` | 按字段隔离的输入历史：草稿恢复、去重、条数限制，以及可选的 0600 原子持久化 |
+| `vv-utils.state` | `register(plugin_id, key_id)` 注册插件状态命名空间，写前合并磁盘最新数据并以 0600 原子持久化 |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
+| `vv-utils.tree_panel` | 可复用的 Trouble 风格树形侧栏，支持稳定折叠、自定义区域渲染、文件预览与跳转 |
 | `vv-utils.bufdelete` | 删 buffer 不破坏窗口布局：`delete` / `all` / `other` / `smart` |
 | `vv-utils.loading` | buffer 行内 loading 动画：`start(opts)` → `stop()`；纯帧计时器 `ticker({on_frame})`（只跑 timer + 循环帧、每帧回调当前帧字符**不渲染**，供帧要塞进调用方自己的多段 virt_text 场景）；内置 `presets.braille`（默认）/ `dots` / `bounce`；`hl_mode='combine'` 透明背景 |
+| `vv-utils.input` | 无状态受控输入装饰：给调用方持有的 buffer 行渲染 label / placeholder，支持 overlay 或虚拟行布局并返回可复用 extmark ID；不管理窗口、焦点、值或输入生命周期 |
 | `vv-utils.prompt` | 底部锚定双行浮动过滤框：`open(anchor_win, opts)` → `handle{close, redraw, set_busy, set_status}`；mode badge + `<S-Tab>` 切模式、placeholder、`timer.debounce` 防抖（支持 `int\|fun` 自适应）、光标锁、失焦取消；可选 spinner（`set_busy` push 模型，帧走 `loading.ticker`）/ `on_navigate`(C-n/C-p) / `on_open_in`(C-x/C-v)。vv-flow / vv-explorer 共用 |
 | `vv-utils.match` | 列表过滤命中判定（纯函数）：`compile(query, {mode, ignore_case})` → `(谓词, ok)`，编译一次复用；三模式 `fixed`（字面子串）/ `subseq`（子序列模糊）/ `regex`（vim 正则），**只判命中不打分不重排**（保住原有分组/顺序）；`next_mode` / `next_in` 模式轮换 |
 | `vv-utils.editor` | `copy(text)` / `visual_range()` / `copy_path(opts?)` |
@@ -96,9 +99,26 @@ local history = require('vv-utils.history').new({
 history:record('search', 'needle')
 history:previous('search', 'current draft')
 history:next('search', 'needle')
+
+local references_state = require('vv-utils.state').register('my-plugin', 'references')
+local TreePanel = require('vv-utils.tree_panel')
+local panel = TreePanel.new({
+  id = 'references',
+  width = 52,
+  state = references_state, -- 实际宽度保存在 handle 的 `width` 字段
+  on_attach = function(current, buf)
+    TreePanel.apply_default_mappings(current, { q = false, x = 'close_panel' })
+  end,
+  source = function() return nodes end,
+})
+panel:toggle()
 ```
 
-持久化实例默认写入 `stdpath('state')/<name>/history.json`。每次写入前会合并磁盘上的最新记录，再通过同目录临时文件原子替换；该机制用于降低多个 Neovim 旧快照互相覆盖的概率，不提供带锁的进程间事务。
+`tree_panel` 自身不注册快捷键。调用方通过 `on_attach(panel, buf)` 完整控制 mode、desc 和其他 keymap 选项；需要常用树操作时可调用 `apply_default_mappings(panel, overrides, opts)`，
+
+需要显式 action/回调表时可调用 `apply_mappings`。默认映射使用 `j` / `k` / `C-n` / `C-p` 移动并预览，`h` / `l` 操作树节点，`Enter` 进入但保留侧栏，`gf` 进入并关闭侧栏，`g?` 打开帮助
+
+渲染权属于调用方：`render.header`、`render.node`、`render.empty` 和 `render.footer` 均可返回纯文本或分段高亮 chunks。`render.winbar` 使用相同返回结构，但固定在窗口顶部，不随树节点滚动；设为 `false` 可清空。`syntax_chunks(text, lang, fallback_hl)` 可把独立源码片段转换为 Tree-sitter chunks，不修改源码 buffer 或任何编辑器全局状态
 
 ## 配置
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.2 - 2026-07-26
+
+### Added
+
+- **state**：新增按插件 ID 与功能 key 隔离的 JSON 状态仓库；写入前合并最新磁盘快照，以 `0600` 权限原子保存，并拒绝静默覆盖损坏的状态文件
+- **tree_panel**：新增调用方驱动的通用树形侧栏，支持左右布局、稳定折叠、自定义渲染与快捷键、固定 winbar、Tree-sitter 片段高亮、预览跳转和持久宽度
+- **input**：新增无状态输入行装饰器，统一渲染 label、placeholder 与快捷键提示，并由调用方持有输入值和生命周期
+
+### Changed
+
+- **prompt**：复用 `vv-utils.input` 渲染标签与 placeholder，保留既有浮窗和过滤生命周期
+- **fs**：JSON 读写支持严格解码与显式文件权限，供状态仓库安全持久化
+- **drop**：注册处理器和拖拽监听时返回幂等 disposer，并提供 teardown 释放 Kitty 监听、按 ownership 还原 `vim.paste`
+- **scroll**：新增 disable 生命周期，取消运行中的动画，并仅还原仍由模块持有的映射和 `mousescroll`
+
 ## 0.3.1 - 2026-07-19
 
 ### Changed

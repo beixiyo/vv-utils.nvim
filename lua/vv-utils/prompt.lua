@@ -18,6 +18,7 @@
 -- 宿主在自身销毁时调 handle.close()，连带关掉浮窗（幂等）
 
 local hl = require('vv-utils.hl')
+local Input = require('vv-utils.input')
 local Loading = require('vv-utils.loading')
 
 local PROMPT_HEIGHT = 2
@@ -81,18 +82,17 @@ end
 ---@param busy_ctx { busy: boolean, label: string, frame_char: string }
 ---@return fun() redraw
 local function setup_decorations(buf, opts, busy_ctx)
-  local label_ns = vim.api.nvim_create_namespace('vv-utils-prompt-label')
-  local ph_ns = vim.api.nvim_create_namespace('vv-utils-prompt-ph')
+  local namespace = vim.api.nvim_create_namespace('vv-utils-prompt')
   local icon = opts.icon or ''
   local label = opts.label or 'filter'
   local placeholder = opts.placeholder or 'type to filter…'
+  local extmark_ids = {}
 
   local status_override = nil  -- set_status 推送的文案（非 busy 时覆盖 get_status）
 
   -- 有 get_mode → 画 mode badge（icon+label）+ <S-Tab> 提示；否则回退静态 label
-  local function draw_label()
+  local function label_chunks()
     if not vim.api.nvim_buf_is_valid(buf) then return end
-    vim.api.nvim_buf_clear_namespace(buf, label_ns, 0, -1)
 
     local mode = opts.get_mode and opts.get_mode()
     local segs
@@ -128,29 +128,22 @@ local function setup_decorations(buf, opts, busy_ctx)
       segs[#segs + 1] = { status, 'VVPromptCount' }
     end
 
-    vim.api.nvim_buf_set_extmark(buf, label_ns, LABEL_ROW, 0, {
-      virt_text = segs,
-      virt_text_pos = 'overlay',
-      right_gravity = false,
-    })
-  end
-
-  local function draw_placeholder()
-    if not vim.api.nvim_buf_is_valid(buf) then return end
-    vim.api.nvim_buf_clear_namespace(buf, ph_ns, 0, -1)
-    local line = vim.api.nvim_buf_get_lines(buf, INPUT_ROW, INPUT_ROW + 1, false)[1] or ''
-    if #line == 0 then
-      vim.api.nvim_buf_set_extmark(buf, ph_ns, INPUT_ROW, 0, {
-        virt_text = { { placeholder, 'VVPromptHint' } },
-        virt_text_pos = 'overlay',
-        right_gravity = false,
-      })
-    end
+    return segs
   end
 
   local function redraw()
-    draw_label()
-    draw_placeholder()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    extmark_ids = Input.render({
+      buf = buf,
+      namespace = namespace,
+      input_row = INPUT_ROW,
+      label_row = LABEL_ROW,
+      label_chunks = label_chunks(),
+      placeholder = { { placeholder, 'VVPromptHint' } },
+      label_id = extmark_ids.label_id,
+      placeholder_id = extmark_ids.placeholder_id,
+      right_gravity = false,
+    })
   end
   -- set_status 推送文案的写入口（闭包共享 status_override）
   local function set_status_text(text) status_override = text end

@@ -13,6 +13,34 @@ local mouse_keys = {
 }
 
 local scroll_keymaps_installed = false
+local saved_mousescroll
+local owned_mousescroll
+local saved_keymaps = {}
+
+local function mapping_key(mode, lhs)
+  return mode .. '\0' .. lhs
+end
+
+local function save_mapping(mode, lhs)
+  local key = mapping_key(mode, lhs)
+  if saved_keymaps[key] ~= nil then return end
+  local mapping = vim.fn.maparg(lhs, mode, false, true)
+  saved_keymaps[key] = type(mapping) == 'table' and next(mapping) and mapping or false
+end
+
+local function restore_mapping(mode, lhs)
+  local mapping = saved_keymaps[mapping_key(mode, lhs)]
+  if mapping == nil then return end
+
+  local current = vim.fn.maparg(lhs, mode, false, true)
+  if type(current) == 'table' and next(current) then
+    local desc = current.desc and tostring(current.desc) or ''
+    if not desc:match('^vv%-scroll:') then return end
+  end
+
+  pcall(vim.keymap.del, mode, lhs)
+  if mapping then vim.fn.mapset(mode, false, mapping) end
+end
 
 ---按鼠标滚轮方向滚动鼠标所在窗口
 ---@param direction 'up'|'down'
@@ -47,13 +75,14 @@ local function sync_mouse_keymaps()
   if state.config().mouse ~= 'smooth' then
     for _, key in ipairs(mouse_keys) do
       for _, mode in ipairs(mouse_modes) do
-        del_mouse_keymap(mode, key.lhs)
+        restore_mapping(mode, key.lhs)
       end
     end
     return
   end
 
   for _, key in ipairs(mouse_keys) do
+    for _, mode in ipairs(mouse_modes) do save_mapping(mode, key.lhs) end
     vim.keymap.set(mouse_modes, key.lhs, function()
       M.mouse(key.dir)
     end, { desc = key.desc })
@@ -100,8 +129,10 @@ end
 ---安装全局滚动键映射（键盘 C-e/C-y）与视口事件
 function M.install()
   local config = state.config()
+  if saved_mousescroll == nil then saved_mousescroll = vim.o.mousescroll end
   if config.mouse_step and config.mouse_step > 0 then
     vim.opt.mousescroll = ('ver:%d,hor:6'):format(config.mouse_step)
+    owned_mousescroll = vim.o.mousescroll
   end
 
   sync_mouse_keymaps()
@@ -109,6 +140,11 @@ function M.install()
 
   if scroll_keymaps_installed then return end
   scroll_keymaps_installed = true
+
+  for _, mode in ipairs({ 'n', 'x' }) do
+    save_mapping(mode, '<C-e>')
+    save_mapping(mode, '<C-y>')
+  end
 
   local function count_lines()
     return vim.v.count > 0 and vim.v.count or state.config().step
@@ -121,6 +157,28 @@ function M.install()
   vim.keymap.set({ 'n', 'x' }, '<C-y>', function()
     animation.window(vim.api.nvim_get_current_win(), -count_lines())
   end, { desc = 'vv-scroll: scroll up' })
+end
+
+function M.uninstall()
+  pcall(vim.api.nvim_del_augroup_by_name, 'VVUtilsScroll')
+
+  for _, mode in ipairs({ 'n', 'x' }) do
+    restore_mapping(mode, '<C-e>')
+    restore_mapping(mode, '<C-y>')
+  end
+  for _, key in ipairs(mouse_keys) do
+    for _, mode in ipairs(mouse_modes) do
+      restore_mapping(mode, key.lhs)
+    end
+  end
+
+  if saved_mousescroll ~= nil and vim.o.mousescroll == owned_mousescroll then
+    vim.o.mousescroll = saved_mousescroll
+  end
+  saved_mousescroll = nil
+  owned_mousescroll = nil
+  saved_keymaps = {}
+  scroll_keymaps_installed = false
 end
 
 return M

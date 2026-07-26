@@ -22,6 +22,7 @@ M.defaults = {
 M.runtime = {
   win_seq = {},
   win_timer = {},
+  auto_timer = {},
   auto_state = {},
   auto_busy = {},
   manual_scroll_count = 0,
@@ -79,6 +80,16 @@ end
 function M.auto_suppressed()
   return M.runtime.manual_scroll_count > 0
     or uv.now() < M.runtime.manual_suppress_until
+end
+
+function M.reset_runtime()
+  M.runtime.win_seq = {}
+  M.runtime.win_timer = {}
+  M.runtime.auto_timer = {}
+  M.runtime.auto_state = {}
+  M.runtime.auto_busy = {}
+  M.runtime.manual_scroll_count = 0
+  M.runtime.manual_suppress_until = 0
 end
 
 return M

@@ -22,6 +22,7 @@ local M = {
 }
 
 local original_paste
+local paste_handler
 
 --- 安装 vim.paste 拦截 + kitty DnD 协议
 ---@param opts? vv-utils.drop.Opts
@@ -29,26 +30,39 @@ function M.setup(opts)
   opts = opts or {}
 
   if not original_paste then
-    original_paste = vim.paste
+    local previous_paste = vim.paste
+    original_paste = previous_paste
 
-    vim.paste = function(lines, phase)
+    paste_handler = function(lines, phase)
       if phase ~= -1 then
-        return original_paste(lines, phase)
+        return previous_paste(lines, phase)
       end
 
       local detected_paths = paths.detect_paths(lines)
       if not detected_paths then
-        return original_paste(lines, phase)
+        return previous_paste(lines, phase)
       end
 
       if dispatcher.dispatch(detected_paths, nil) then return false end
-      return original_paste(lines, phase)
+      return previous_paste(lines, phase)
     end
+    vim.paste = paste_handler
   end
 
   if opts.kitty_dnd ~= false then
     kitty.setup(dispatcher.dispatch, dispatcher.fire_drag)
+  else
+    kitty.teardown()
   end
+end
+
+function M.teardown()
+  kitty.teardown()
+  if paste_handler and vim.paste == paste_handler then
+    vim.paste = original_paste
+  end
+  original_paste = nil
+  paste_handler = nil
 end
 
 ---@class vv-utils.drop.Opts

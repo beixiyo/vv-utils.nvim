@@ -54,12 +54,15 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.lsp.fix` | Apply converged multi-LSP fixes atomically to one file or multiple paths |
 | `vv-utils.lsp.file_operations` | Collect `workspace/willRenameFiles` edits and send `workspace/didRenameFiles`; it does not move files |
 | `vv-utils.history` | Per-field input history with draft restoration, deduplication, bounded entries, and optional 0600 atomic persistence |
+| `vv-utils.state` | Namespaced JSON state shared by plugins through `register(plugin_id, key_id)`, with merge-before-write and 0600 atomic persistence |
 | `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
 | `vv-utils.hl` | Batch highlight `register` with `default=true` and ColorScheme refresh, plus `get_fg` lookup |
 | `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
 | `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
+| `vv-utils.tree_panel` | Reusable Trouble-style tree sidebar with stable folds, custom render regions, file preview, and jumps |
 | `vv-utils.bufdelete` | Layout-safe buffer deletion through `delete`, `all`, `other`, and `smart` |
 | `vv-utils.loading` | Inline loading animation plus a render-free frame ticker and braille, dots, and bounce presets |
+| `vv-utils.input` | Stateless label and placeholder rendering for controlled input rows, with overlay or virtual-line layouts |
 | `vv-utils.prompt` | Bottom-anchored two-line filtering prompt with modes, debounce, spinner, navigation, and split-open callbacks |
 | `vv-utils.match` | Compile fixed, subsequence, or Vim-regex predicates without scoring or reordering the source list |
 | `vv-utils.editor` | Text copy, Visual range, and path-copy helpers |
@@ -79,9 +82,11 @@ Important details:
 - `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `opts.from_rev` / `opts.to_rev` select an arbitrary revision range and `opts.side` projects markers onto its old or new side
 - `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
 - `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
+- `input.render(opts)` decorates caller-owned buffer rows and returns reusable extmark IDs; it does not own windows, focus, values, or input lifecycle
 - `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
 - `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
 - `history.new({ name, max_entries?, persist?, path? })` creates an isolated instance; persistent writes merge the latest on-disk records before atomic replacement but do not provide inter-process locking
+- `state.register(plugin_id, key_id)` returns a field handle backed by `stdpath('state')/vv-utils/state.json`; each write reloads and merges the latest disk snapshot but does not provide inter-process locking
 - `drop.register(handler)` receives `fun(paths, pos)`, while `drop.on_drag(cb)` subscribes to movement and leave events
 - Kitty DnD requires Kitty 0.47 or newer and does not operate through tmux
 
@@ -107,7 +112,38 @@ local history = require('vv-utils.history').new({
 history:record('search', 'needle')
 history:previous('search', 'current draft')
 history:next('search', 'needle')
+
+local references_state = require('vv-utils.state').register('my-plugin', 'references')
+local TreePanel = require('vv-utils.tree_panel')
+local panel = TreePanel.new({
+  id = 'references',
+  width = 52,
+  state = references_state, -- Stores the actual width in the handle's `width` field
+  on_attach = function(current, buf)
+    TreePanel.apply_default_mappings(current, { q = false, x = 'close_panel' })
+  end,
+  source = function() return nodes end,
+  render = {
+    header = function() return { text = 'References', hl = 'Title' } end,
+    node = function(ctx) return { text = ctx.node.label } end,
+  },
+})
+panel:toggle()
 ```
+
+`tree_panel` registers no keymaps itself. `on_attach(panel, buf)` gives the caller complete
+control over modes, descriptions, and keymap options. The optional
+`apply_default_mappings(panel, overrides, opts)` helper installs common tree controls;
+`apply_mappings` installs an explicit action/callback table. The common mappings use
+`j` / `k` / `C-n` / `C-p` for preview navigation, `h` / `l` for tree navigation,
+`Enter` to open while retaining the panel, `gf` to open and close, and `g?` for help.
+
+Rendering is caller-owned: `render.header`, `render.node`, `render.empty`, and
+`render.footer` may each return plain text or highlighted chunks. `render.winbar`
+uses the same return shape but stays fixed at the top of the window while tree rows
+scroll; set it to `false` to clear it. `syntax_chunks(text,
+lang, fallback_hl)` converts an independent source snippet into Tree-sitter chunks
+without changing a source buffer or global editor state.
 
 ## Configuration
 

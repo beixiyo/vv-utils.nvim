@@ -10,14 +10,40 @@ local drag_handlers = {}
 
 --- 注册拖拽处理器，返回 true 表示已消费，阻止后续 handler
 ---@param handler fun(paths: string[], pos: vv-utils.drop.Position?): boolean?
+---@return fun() dispose
 function M.register(handler)
   handlers[#handlers + 1] = handler
+  local active = true
+
+  return function()
+    if not active then return end
+    active = false
+    for index, current in ipairs(handlers) do
+      if current == handler then
+        table.remove(handlers, index)
+        return
+      end
+    end
+  end
 end
 
 --- 订阅拖拽移动 / 离开事件（仅 kitty DnD 协议下触发），用于实时高亮落点
 ---@param handler fun(ev: vv-utils.drop.DragEvent): nil
+---@return fun() dispose
 function M.on_drag(handler)
   drag_handlers[#drag_handlers + 1] = handler
+  local active = true
+
+  return function()
+    if not active then return end
+    active = false
+    for index, current in ipairs(drag_handlers) do
+      if current == handler then
+        table.remove(drag_handlers, index)
+        return
+      end
+    end
+  end
 end
 
 ---@param event vv-utils.drop.DragEvent
