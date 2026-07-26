@@ -42,7 +42,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 
 | Module | Description |
 |---|---|
-| `vv-utils.path` | Path normalization, middle-segment collapsing, project-root discovery, and current-directory lookup |
+| `vv-utils.path` | Path normalization, middle-segment collapsing, Git-first project-root discovery, and current-directory lookup |
 | `vv-utils.glob` | VS Code-style search glob splitting and expansion into root-anchored or any-depth ripgrep patterns |
 | `vv-utils.path_completion` | UI-agnostic path candidates for comma-separated search globs and directory-only inputs; unanchored fragments can resolve at any depth via `fd` |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
@@ -95,6 +95,7 @@ Important details:
 ```lua
 local path = require('vv-utils.path')
 path.get_root()
+path.find_root('/work/repository/apps/web/src/App.tsx') -- Git root first, then nearest manifest
 path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 })
 
 local glob = require('vv-utils.glob')

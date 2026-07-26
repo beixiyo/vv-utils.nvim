@@ -47,4 +47,51 @@ test(
   'a/b/.../e.lua'
 )
 
+local fixture = vim.fn.tempname()
+local repository = fixture .. '/repository'
+local frontend = repository .. '/apps/web'
+local source = frontend .. '/src/App.tsx'
+vim.fn.mkdir(frontend .. '/src', 'p')
+vim.fn.mkdir(repository .. '/.git', 'p')
+vim.fn.writefile({ '{}' }, frontend .. '/package.json')
+vim.fn.writefile({ 'export {}' }, source)
+
+test(
+  'Git 根优先于 monorepo 子包 manifest',
+  path.find_root(source),
+  vim.fs.normalize(repository)
+)
+
+local standalone = fixture .. '/standalone/service'
+local standalone_source = standalone .. '/lib/main.rs'
+vim.fn.mkdir(standalone .. '/lib', 'p')
+vim.fn.writefile({ '[package]' }, standalone .. '/Cargo.toml')
+vim.fn.writefile({ 'fn main() {}' }, standalone_source)
+
+test(
+  '没有 Git 时回退到最近的语言 manifest',
+  path.find_root(standalone_source),
+  vim.fs.normalize(standalone)
+)
+
+test('未命中项目标识时返回 nil', path.find_root(fixture .. '/orphan/file.txt'), nil)
+
+local worktree = fixture .. '/worktree'
+local worktree_source = worktree .. '/src/main.lua'
+vim.fn.mkdir(worktree .. '/src', 'p')
+vim.fn.writefile({ 'gitdir: ../git/worktrees/test' }, worktree .. '/.git')
+vim.fn.writefile({ 'return {}' }, worktree_source)
+
+test('支持 worktree 的 .git 文件', path.find_root(worktree_source), vim.fs.normalize(worktree))
+
+local ignored = fixture .. '/ignored'
+local ignored_source = ignored .. '/src/main.lua'
+vim.fn.mkdir(ignored .. '/src', 'p')
+vim.fn.writefile({ 'build/' }, ignored .. '/.gitignore')
+vim.fn.writefile({ 'return {}' }, ignored_source)
+
+test('.gitignore 不作为项目根标记', path.find_root(ignored_source), nil)
+
+vim.fn.delete(fixture, 'rf')
+
 print(('%d PASS / 0 FAIL'):format(passed))

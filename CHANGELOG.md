@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 - 2026-07-26
+
+### Changed
+
+- **path**：新增 `find_root(path, opts?)`；项目根解析优先上层 `.git` 工作树标记，未命中时再回退到最近的跨语言包管理或构建 manifest，`get_root()` 复用该逻辑
+
 ## 0.3.2 - 2026-07-26
 
 ### Added
