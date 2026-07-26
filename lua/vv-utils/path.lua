@@ -60,7 +60,7 @@ function M.get_root(buf)
   local bufpath = vim.api.nvim_buf_get_name(buf)
 
   if bufpath == "" then
-    bufpath = vim.uv.cwd()
+    bufpath = vim.uv.cwd() or vim.fn.getcwd()
   else
     bufpath = vim.fs.dirname(bufpath)
   end
@@ -72,12 +72,12 @@ function M.get_root(buf)
     return M.norm(vim.fs.dirname(root))
   end
 
-  return M.norm(vim.uv.cwd())
+  return M.norm(vim.uv.cwd() or vim.fn.getcwd())
 end
 
 -- 获取当前工作目录
 function M.get_cwd()
-  return M.norm(vim.uv.cwd())
+  return M.norm(vim.uv.cwd() or vim.fn.getcwd())
 end
 
 ---@class vv-utils.path.CollapseMiddleOpts
@@ -85,4 +85,3 @@ end
 ---@field tail? integer 保留的末尾层级数 @default 3
 ---@field ellipsis? string 省略标记 @default '…'
 return M
-

@@ -81,6 +81,7 @@ end
 ---@param opts VVPromptOpts
 ---@param busy_ctx { busy: boolean, label: string, frame_char: string }
 ---@return fun() redraw
+---@return fun(text: string) set_status_text
 local function setup_decorations(buf, opts, busy_ctx)
   local namespace = vim.api.nvim_create_namespace('vv-utils-prompt')
   local icon = opts.icon or ''
@@ -146,6 +147,7 @@ local function setup_decorations(buf, opts, busy_ctx)
     })
   end
   -- set_status 推送文案的写入口（闭包共享 status_override）
+  ---@param text string
   local function set_status_text(text) status_override = text end
   return redraw, set_status_text
 end
@@ -350,14 +352,14 @@ end
 ---@field placeholder?   string                       空输入占位 @default 'type to filter…'
 ---@field mode_display?  fun(mode: string): {icon:string, label:string, hl:string}  mode badge 显示元数据（需 get_mode）
 ---@field get_mode?      fun(): string                当前模式键，驱动 mode badge；缺省则显示静态 label
----@field on_cycle_mode? fun()                        <S-Tab>：切下一模式（宿主负责轮换 + 重筛）
+---@field on_cycle_mode? fun()                        按 Shift-Tab 切下一模式（宿主负责轮换 + 重筛）
 ---@field get_status?    fun(): string                实时状态文案（如 '12 matches'），随每次输入刷新
 ---@field on_input?      fun(query: string)           每次按键即时回调（防抖前，宿主可据此 set_busy）
 ---@field on_change      fun(query: string)           防抖后每次输入变化（实时筛选）
----@field on_accept      fun(query: string)           <CR>：保留过滤态，关闭输入框
----@field on_cancel      fun()                        <Esc> / normal q / 失焦：取消过滤
----@field on_navigate?   fun(dir: integer)            <C-n>=+1 / <C-p>=-1：宿主列表里跳 match
----@field on_open_in?    fun(kind: 'split'|'vsplit')  <C-x> / <C-v>：分屏打开当前 match
+---@field on_accept      fun(query: string)           按 Enter 保留过滤态并关闭输入框
+---@field on_cancel      fun()                        按 Escape、normal q 或失焦时取消过滤
+---@field on_navigate?   fun(dir: integer)            按 Ctrl-N/Ctrl-P 在宿主列表中跳转 match
+---@field on_open_in?    fun(kind: 'split'|'vsplit')  按 Ctrl-X/Ctrl-V 分屏打开当前 match
 ---@field debounce?      integer|fun(): integer       防抖毫秒（支持自适应函数）@default 30
 ---@field spinner?       VVPromptSpinnerOpts          提供则启用 busy spinner（配合 handle.set_busy）
 return M

@@ -7,6 +7,12 @@ local Scanner = require('vv-utils.path_completion.scanner')
 
 local M = {}
 
+---@class vv-utils.path_completion.Item
+---@field word string
+---@field abbr string
+---@field kind string
+---@field menu string
+
 ---@param path string
 ---@return string
 local function normalized(path)
@@ -16,7 +22,7 @@ end
 ---@param matches vv-utils.path_completion.Match[]
 ---@param insertion_dir string
 ---@param glob boolean
----@return vim.CompleteItem[]
+---@return vv-utils.path_completion.Item[]
 local function to_items(matches, insertion_dir, glob)
   local items = {}
   for _, match in ipairs(matches) do
@@ -32,10 +38,10 @@ local function to_items(matches, insertion_dir, glob)
   return items
 end
 
----@param items vim.CompleteItem[]
----@param additions vim.CompleteItem[]
+---@param items vv-utils.path_completion.Item[]
+---@param additions vv-utils.path_completion.Item[]
 ---@param max_items integer
----@return vim.CompleteItem[]
+---@return vv-utils.path_completion.Item[]
 local function merge_items(items, additions, max_items)
   local seen = {}
   for _, item in ipairs(items) do seen[item.word] = true end
@@ -61,7 +67,7 @@ end
 ---@param source string
 ---@param cwd string
 ---@param opts { directories_only: boolean, glob: boolean, max_items: integer, recursive: boolean?, timeout_ms: integer }
----@return vim.CompleteItem[]
+---@return vv-utils.path_completion.Item[]
 function M.complete(source, cwd, opts)
   if source == '~' and not opts.glob then
     return { { word = '~/', abbr = '~/', kind = 'Folder', menu = '[path]' } }

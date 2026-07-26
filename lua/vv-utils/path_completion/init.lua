@@ -83,6 +83,6 @@ end
 
 ---@class vv-utils.path_completion.Result
 ---@field start_col integer 需要替换的 0-based byte 起始列 @default 0
----@field items vim.CompleteItem[] 补全候选 @default {}
+---@field items vv-utils.path_completion.Item[] 补全候选 @default {}
 
 return M

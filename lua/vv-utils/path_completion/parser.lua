@@ -111,7 +111,8 @@ end
 ---@param value string
 ---@return string
 function M.strip_relative_prefix(value)
-  return value:gsub('^%.[/\\]', ''):gsub('[/\\]+$', '')
+  local stripped = value:gsub('^%.[/\\]', ''):gsub('[/\\]+$', '')
+  return stripped
 end
 
 ---@param path string
