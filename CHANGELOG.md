@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 - 2026-07-27
+
+### Added
+
+- **keymap**：新增 buffer-local 映射生命周期管理。`attach(opts)` 按 `filetypes`、`enabled` 与自定义 `when` 条件接管映射；FileType 切换、`refresh()` 或 `detach()` 时只恢复仍由自身持有的映射，保留用户中途重绑的快捷键，并在 `BufWipeout` 自动清理内部状态
+
 ## 0.4.0 - 2026-07-27
 
 ### Changed

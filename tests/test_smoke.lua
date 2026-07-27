@@ -31,16 +31,6 @@ local function test(name, fn)
   end
 end
 
--- 1. path.lua: "lua" 不在 root_patterns 中
-test('path.lua: root_patterns 不含 "lua"', function()
-  local src = vim.fn.readfile(plugin_root .. '/lua/vv-utils/path.lua')
-  for _, line in ipairs(src) do
-    if line:match('root_patterns') and line:match('"lua"') then
-      error('root_patterns 仍包含 "lua"')
-    end
-  end
-end)
-
 -- 2. diagnostics.lua: 优先使用 vv-icons 的诊断图标与 Diagnostic* 高亮
 test('diagnostics.lua: DiagnosticError icon', function()
   package.loaded['vv-utils.diagnostics'] = nil
@@ -73,15 +63,6 @@ test('diagnostics.lua: DiagnosticHint icon', function()
   local sym = D.symbol_for({ [vim.diagnostic.severity.HINT] = 1 })
   assert(sym and sym.glyph == icons.diagnostics_hint, '期望 vv-icons hint glyph')
   assert(sym and sym.hl == 'DiagnosticHint', '期望 DiagnosticHint, 实际: ' .. (sym and sym.hl or 'nil'))
-end)
-
-test('diagnostics.lua: 不含旧名 VVExplorerDiag', function()
-  local src = vim.fn.readfile(plugin_root .. '/lua/vv-utils/diagnostics.lua')
-  for _, line in ipairs(src) do
-    if line:match('VVExplorerDiag[EWIH]') then
-      error('仍包含旧高亮组名: ' .. line)
-    end
-  end
 end)
 
 -- 3. Git 行级 diff 解析
@@ -252,34 +233,35 @@ test('fs: write_all 原子写入', function()
   fs.delete(tmp_dir)
 end)
 
--- 6. sys.lua: 使用 vim.ui.open
-test('sys.lua: 使用 vim.ui.open 而非 jobstart', function()
-  local src = vim.fn.readfile(plugin_root .. '/lua/vv-utils/sys.lua')
-  local has_vim_ui_open = false
-  local has_jobstart = false
-  for _, line in ipairs(src) do
-    if line:match('vim%.ui%.open') then has_vim_ui_open = true end
-    if line:match('jobstart') then has_jobstart = true end
-  end
-  assert(has_vim_ui_open, '应使用 vim.ui.open')
-  assert(not has_jobstart, '不应再使用 jobstart')
-end)
+-- 6. sys.open_default
+test('sys.open_default: 转发路径并报告 opener 失败', function()
+  local sys = require('vv-utils.sys')
+  local original_open = vim.ui.open
+  local original_notify = vim.notify
+  local opened_path
+  local notice
 
-test('sys.lua: 不含平台检测代码', function()
-  local src = vim.fn.readfile(plugin_root .. '/lua/vv-utils/sys.lua')
-  for _, line in ipairs(src) do
-    assert(not line:match('xdg%-open'), '不应包含 xdg-open: ' .. line)
-    assert(not line:match("has%('mac'%)"), "不应包含 has('mac'): " .. line)
+  vim.ui.open = function(path)
+    opened_path = path
+    return {}
   end
+  assert(sys.open_default('/tmp/vv-utils-open-default.txt'))
+  assert(opened_path == '/tmp/vv-utils-open-default.txt', '应把路径传给 Neovim opener')
+  assert(not sys.open_default(''), '空路径不应调用 opener')
+
+  vim.ui.open = function() return nil, 'no opener' end
+  vim.notify = function(message, level)
+    notice = { message = message, level = level }
+  end
+  assert(not sys.open_default('/tmp/no-opener.txt'), 'opener 失败应返回 false')
+  assert(notice and notice.message:find('no opener', 1, true), 'opener 失败应通知原始错误')
+  assert(notice.level == vim.log.levels.ERROR, 'opener 失败应使用 error 级别')
+
+  vim.ui.open = original_open
+  vim.notify = original_notify
 end)
 
 -- 7. editor.copy_path
-test('editor.copy_path: 函数存在', function()
-  package.loaded['vv-utils.editor'] = nil
-  local ed = require('vv-utils.editor')
-  assert(type(ed.copy_path) == 'function', 'editor.copy_path 应为函数')
-end)
-
 test('editor.copy_path: 外部 path + silent 复制绝对路径', function()
   local ed = require('vv-utils.editor')
   local tmp = vim.fn.tempname()

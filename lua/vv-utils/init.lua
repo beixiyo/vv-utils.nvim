@@ -20,6 +20,7 @@
 --   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
 --   help_panel  通用 keymap 帮助浮窗（反读 buffer keymap 按分类渲染）
+--   keymap      buffer-local 映射的声明式接管与恢复（按 filetype / 条件自动同步）
 --   bufdelete   删除 buffer 不破坏窗口布局
 --   loading     通用 buffer 行内 loading 动画（spinner / dots / bounce，start(opts)→stop）
 --   editor      编辑器通用工具（剪贴板 copy / 可视选区 visual_range）

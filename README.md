@@ -59,6 +59,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.hl` | Batch highlight `register` with `default=true` and ColorScheme refresh, plus `get_fg` lookup |
 | `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
 | `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
+| `vv-utils.keymap` | Declaratively claim buffer-local mappings while active, then restore the previous mapping when filetype or custom conditions no longer match |
 | `vv-utils.tree_panel` | Reusable Trouble-style tree sidebar with stable folds, custom render regions, file preview, and jumps |
 | `vv-utils.bufdelete` | Layout-safe buffer deletion through `delete`, `all`, `other`, and `smart` |
 | `vv-utils.loading` | Inline loading animation plus a render-free frame ticker and braille, dots, and bounce presets |
@@ -83,6 +84,7 @@ Important details:
 - `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
 - `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
 - `input.render(opts)` decorates caller-owned buffer rows and returns reusable extmark IDs; it does not own windows, focus, values, or input lifecycle
+- `keymap.attach(opts)` returns a handle with `refresh(buf?)` and `detach()`; it only restores a mapping when it is still the owner, so a later user or plugin rebind wins
 - `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
 - `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
 - `history.new({ name, max_entries?, persist?, path? })` creates an isolated instance; persistent writes merge the latest on-disk records before atomic replacement but do not provide inter-process locking

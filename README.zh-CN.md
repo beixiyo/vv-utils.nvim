@@ -58,6 +58,7 @@
 | `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
+| `vv-utils.keymap` | 声明式接管 buffer-local 映射；filetype 或自定义条件失效时自动归还原映射 |
 | `vv-utils.tree_panel` | 可复用的 Trouble 风格树形侧栏，支持稳定折叠、自定义区域渲染、文件预览与跳转 |
 | `vv-utils.bufdelete` | 删 buffer 不破坏窗口布局：`delete` / `all` / `other` / `smart` |
 | `vv-utils.loading` | buffer 行内 loading 动画：`start(opts)` → `stop()`；纯帧计时器 `ticker({on_frame})`（只跑 timer + 循环帧、每帧回调当前帧字符**不渲染**，供帧要塞进调用方自己的多段 virt_text 场景）；内置 `presets.braille`（默认）/ `dots` / `bounce`；`hl_mode='combine'` 透明背景 |
@@ -74,6 +75,21 @@
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_trailing`（命令需 `setup()` 启用） |
 | `vv-utils.animate` | 通用补间动画引擎：`add(from, to, cb, opts?)` / `del(id)`，uv_timer 驱动 + easing（linear/outQuad/outCubic/inQuad/inOutQuad） |
 | `vv-utils.scroll` | 跨窗口平滑滚动（`window(win_id, lines)` / `mouse(direction, win_id?)` / `with_view_animation(win_id, fn)` / `with_auto_suppressed(win_id, fn)`）；键盘滚动与大跳转默认平滑，鼠标默认即时，可用 `mouse='smooth'` 接管 |
+
+## 重要说明
+
+- `git.index(root, cb)` 返回状态、忽略路径、`is_ignored` 与 `rename_map`；图标仍由模块级 helper 提供
+- `git.diff_lines(path, cb, opts?)` 返回单侧行级 diff；`opts.from_rev` / `opts.to_rev` 可选择任意 revision 范围，`opts.side` 投影到旧侧或新侧
+- `git.diff_line_sets(path, cb)` 同时返回 staged / unstaged 集合，且 staged 坐标已映射到 worktree
+- `loading.ticker({ on_frame })` 只调度帧并调用回调，不渲染内容
+- `input.render(opts)` 装饰调用方持有的 buffer 行并返回可复用 extmark ID；不管理窗口、焦点、值或输入生命周期
+- `keymap.attach(opts)` 返回含 `refresh(buf?)` / `detach()` 的 handle；仅在映射仍由它持有时才归还，因此之后的用户或插件重绑优先
+- `prompt.open(anchor_win, opts)` 返回含 `close` / `redraw` / `set_busy` / `set_status` 的 handle
+- `match.compile(query, { mode, ignore_case })` 编译一次，返回可复用谓词与有效状态
+- `history.new({ name, max_entries?, persist?, path? })` 创建隔离实例；持久化写入会合并最新磁盘记录并原子替换，但不提供跨进程锁
+- `state.register(plugin_id, key_id)` 返回由 `stdpath('state')/vv-utils/state.json` 支持的字段 handle；每次写入会重读并合并最新磁盘快照，但不提供跨进程锁
+- `drop.register(handler)` 接收 `fun(paths, pos)`；`drop.on_drag(cb)` 订阅拖拽移动和离开事件
+- Kitty DnD 需要 Kitty 0.47 或更高版本，且不能经由 tmux 运行
 
 ## 引用方式
 
