@@ -71,7 +71,7 @@
 ---@field text? string
 ---@field hl? string
 ---@field virt_text? VVTreePanelChunk[]
----@field virt_text_pos? 'eol'|'overlay'|'right_align'|'inline'  @default 'right_align'
+---@field virt_text_pos? 'eol'|'eol_right_align'|'overlay'|'right_align'|'inline'  @default 'right_align'
 
 ---@class VVTreePanelSyntaxInterval
 ---@field start_col integer
