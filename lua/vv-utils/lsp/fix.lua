@@ -46,17 +46,64 @@ local function supports_filetype(config, filetype)
   return config.filetypes == nil or vim.tbl_contains(config.filetypes, filetype)
 end
 
-function M.supports_path(path, configs)
-  local filetype = M.detect_filetype(path)
-  if not filetype then return false end
+local function configured_executable(config)
+  local cmd = config.cmd
+  if type(cmd) == 'function' or cmd == nil then return true end
 
-  for _, config in ipairs(configs or M.config_snapshot()) do
-    if supports_filetype(config, filetype) then return true end
+  local executable = type(cmd) == 'table' and cmd[1] or cmd
+  if type(executable) ~= 'string' or executable == '' then return true end
+  return vim.fn.executable(executable) == 1, executable
+end
+
+---检查文件是否存在匹配且明确可启动的 LSP 配置
+---函数型 cmd、自定义 transport 和未声明 cmd 的配置无法静态判定，因此保持可用
+---@param path string
+---@param configs? table[]
+---@return boolean supported
+---@return {code: 'no_lsp_config'|'lsp_executable_missing', message: string, filetype?: string, executables?: string[]}? error
+function M.check_path_support(path, configs)
+  local filetype = M.detect_filetype(path)
+  if not filetype then
+    return false, {
+      code = 'no_lsp_config',
+      message = 'Unable to detect a filetype with an enabled LSP configuration',
+    }
   end
+
+  local matching = {}
+  for _, config in ipairs(configs or M.config_snapshot()) do
+    if supports_filetype(config, filetype) then
+      matching[#matching + 1] = config
+    end
+  end
+
+  -- 已有客户端即使其启动命令随后从 PATH 消失，仍然能够继续服务新 buffer
   for _, client in ipairs(vim.lsp.get_clients({ _uninitialized = true })) do
     if not client.config or supports_filetype(client.config, filetype) then return true end
   end
-  return false
+
+  if #matching == 0 then
+    return false, {
+      code = 'no_lsp_config',
+      message = 'No enabled LSP configuration matches the filetype',
+      filetype = filetype,
+    }
+  end
+
+  local missing = {}
+  for _, config in ipairs(matching) do
+    local available, executable = configured_executable(config)
+    if available then return true end
+    missing[#missing + 1] = executable
+  end
+
+  table.sort(missing)
+  return false, {
+    code = 'lsp_executable_missing',
+    message = 'All matching LSP configurations reference unavailable executables',
+    filetype = filetype,
+    executables = missing,
+  }
 end
 
 local function pending_clients(bufnr)
@@ -198,8 +245,9 @@ function M.file(opts)
   if not vim.uv.fs_lstat(path) then
     return { changed = false, error = { code = 'document_not_found', message = 'Document does not exist' } }
   end
-  if temporary and not M.supports_path(path, opts.configs) then
-    return { changed = false, error = { code = 'no_lsp', message = 'No enabled LSP matches the filetype' } }
+  if temporary then
+    local supported, support_error = M.check_path_support(path, opts.configs)
+    if not supported then return { changed = false, error = support_error } end
   end
 
   if temporary then

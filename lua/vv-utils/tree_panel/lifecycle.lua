@@ -1,4 +1,3 @@
----@diagnostic disable: inject-field
 -- Tree panel 的窗口、timer 与 autocmd 生命周期
 
 local Preview = require('vv-utils.tree_panel.preview')
@@ -55,7 +54,6 @@ function M.open(panel)
   end
 
   panel.buf = vim.api.nvim_create_buf(false, true)
----@diagnostic disable-next-line: inject-field
   panel.ns = vim.api.nvim_create_namespace('vv-utils-tree-panel-' .. panel.opts.id)
 
   local position = panel.opts.position == 'left' and 'topleft' or 'botright'

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 - 2026-07-27
+
+### Changed
+
+- **lsp.code_actions**：同一阶段向全部 LSP 客户端并行请求 Code Action，并让 `textDocument/codeAction` 与 `codeAction/resolve` 共享单次绝对截止时间；多客户端不再按数量累计等待，超时后取消仍在进行的请求
+- **lsp.fix**：新增 `check_path_support(path, configs?)`，在创建临时 buffer 前检查 filetype、已启用配置与 LSP 可执行文件，缺少配置或可执行文件时立即返回结构化错误，避免无可用 LSP 时空转等待
+- **tree_panel**：将分散在实现模块中的公开类型集中到 `tree_panel/types/init.lua`，由模块入口统一加载；仅整理类型所有权，不改变运行时行为
+
+### Breaking
+
+- **lsp.fix**：删除 `supports_path(path, configs?)`，调用方需改用返回 `(supported, error?)` 的 `check_path_support(path, configs?)`
+
 ## 0.3.3 - 2026-07-26
 
 ### Changed

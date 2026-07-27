@@ -19,9 +19,9 @@ local client = {
   name = 'fixture-lsp',
   offset_encoding = 'utf-16',
   supports_method = function() return true end,
-  request_sync = function(_, _, params)
+  request = function(_, _, params, callback)
     requests[#requests + 1] = vim.deepcopy(params)
-    return { result = {
+    callback(nil, {
       {
         title = 'Fix rounded',
         kind = 'quickfix',
@@ -38,7 +38,8 @@ local client = {
           newText = 'p-4',
         }} } },
       },
-    } }
+    })
+    return true, #requests
   end,
 }
 
@@ -61,8 +62,9 @@ assert(vim.iter(requests):all(function(params)
   return not vim.tbl_contains(params.context.only or {}, 'source.fixAll')
 end), 'line fixes must not request source.fixAll')
 
-client.request_sync = function()
-  return { err = { code = -32603, message = 'fixture response failed' } }
+client.request = function(_, _, _, callback)
+  callback({ code = -32603, message = 'fixture response failed' })
+  return true, 1
 end
 local failed = CodeActions.fix_document({ bufnr = bufnr, timeout_ms = 10 })
 assert(failed.changed == false and failed.error.code == 'code_action_request_failed',
@@ -70,6 +72,60 @@ assert(failed.changed == false and failed.error.code == 'code_action_request_fai
 assert(failed.error.errors['fixture-lsp'].message == 'fixture response failed')
 assert(failed.error.errors['fixture-lsp'].kind == 'response_error')
 assert(failed.error.errors['fixture-lsp'].retryable == false)
+
+local dispatched = {}
+local parallel_clients = {}
+for index, name in ipairs({ 'typescript-tools', 'tailwindcss' }) do
+  parallel_clients[index] = {
+    id = 910 + index,
+    name = name,
+    offset_encoding = 'utf-16',
+    supports_method = function() return true end,
+    request = function(self, method, _, callback)
+      assert(method == 'textDocument/codeAction')
+      dispatched[#dispatched + 1] = self.name
+      vim.schedule(function()
+        assert(#dispatched % 2 == 0, 'all clients must be dispatched before awaiting responses')
+        callback(nil, {})
+      end)
+      return true, self.id
+    end,
+  }
+end
+vim.lsp.get_clients = function() return parallel_clients end
+local no_fixes, no_fixes_error = CodeActions.collect_document_fixes({
+  bufnr = bufnr,
+  timeout_ms = 100,
+})
+assert(not no_fixes and no_fixes_error.code == 'no_quickfixes', vim.inspect(no_fixes_error))
+assert(vim.deep_equal(dispatched, {
+  'typescript-tools',
+  'tailwindcss',
+  'typescript-tools',
+  'tailwindcss',
+}), 'each request phase must dispatch all eligible clients together')
+
+local cancelled = 0
+for _, pending_client in ipairs(parallel_clients) do
+  pending_client.request = function(self)
+    return true, self.id
+  end
+  pending_client.cancel_request = function()
+    cancelled = cancelled + 1
+  end
+end
+local started_at = vim.uv.hrtime()
+local timed_out, timeout_failure = CodeActions.collect_document_fixes({
+  bufnr = bufnr,
+  timeout_ms = 100,
+})
+local elapsed_ms = (vim.uv.hrtime() - started_at) / 1000000
+assert(not timed_out and timeout_failure.code == 'code_action_request_failed',
+  vim.inspect(timeout_failure))
+assert(timeout_failure.errors['typescript-tools'].kind == 'timeout')
+assert(timeout_failure.errors.tailwindcss.kind == 'timeout')
+assert(cancelled == 2, 'every request left at the shared deadline must be cancelled')
+assert(elapsed_ms < 175, ('two clients must share one 100ms deadline, took %.1fms'):format(elapsed_ms))
 
 vim.lsp.get_clients = original_get_clients
 Fs.delete(tmp)

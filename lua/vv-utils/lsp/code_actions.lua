@@ -82,17 +82,7 @@ local function fix_all_params(bufnr)
   return params
 end
 
-local function request_error(response, wait_error)
-  if wait_error then
-    local kind = type(wait_error) == 'string' and wait_error or 'request_error'
-    return {
-      kind = kind,
-      message = type(wait_error) == 'table'
-          and (wait_error.message or vim.inspect(wait_error))
-          or tostring(wait_error),
-      retryable = kind == 'timeout' or kind == 'interrupted',
-    }
-  end
+local function request_error(response)
   if response and response.err then
     return {
       kind = 'response_error',
@@ -103,26 +93,86 @@ local function request_error(response, wait_error)
   end
 end
 
-local function resolve_action(action, client, bufnr, timeout_ms)
-  if action.disabled then return nil end
-  if not action.edit and action.data and client:supports_method('codeAction/resolve', bufnr) then
-    local response, wait_error = client:request_sync('codeAction/resolve', action, timeout_ms, bufnr)
-    local error = request_error(response, wait_error)
-    if error then return nil, error end
-    action = response and response.result or action
+local function remaining_ms(deadline)
+  return math.max(math.floor((deadline - vim.uv.hrtime()) / 1000000), 0)
+end
+
+local function timeout_error()
+  return {
+    kind = 'timeout',
+    message = 'LSP request did not finish before the shared deadline',
+    retryable = true,
+  }
+end
+
+---并行发送一批只读 LSP 请求，并让整批共享同一个绝对截止时间
+---@param requests {client: vim.lsp.Client, params: table}[]
+---@param method string
+---@param bufnr integer
+---@param deadline integer
+---@return table<integer, {result?: any, error?: table}>
+local function request_batch(requests, method, bufnr, deadline)
+  local responses = {}
+  local pending = {}
+
+  for index, item in ipairs(requests) do
+    local completed = false
+    local ok, accepted, request_id = pcall(function()
+      return item.client:request(method, item.params, function(error, result)
+        if completed then return end
+        completed = true
+        pending[index] = nil
+        local response = { result = result, err = error }
+        responses[index] = {
+          result = result,
+          error = request_error(response),
+        }
+      end, bufnr)
+    end)
+
+    if not ok or accepted == false then
+      completed = true
+      responses[index] = {
+        error = {
+          kind = 'request_error',
+          message = ok and 'LSP client rejected the request' or tostring(accepted),
+          retryable = false,
+        },
+      }
+    elseif not completed then
+      pending[index] = {
+        client = item.client,
+        request_id = request_id,
+        complete = function() completed = true end,
+      }
+    end
   end
-  if action.command or not action.edit then return nil end
-  return action
+
+  local wait_ms = remaining_ms(deadline)
+  if next(pending) and wait_ms > 0 then
+    vim.wait(wait_ms, function() return next(pending) == nil end, 10)
+  end
+
+  for index, request in pairs(pending) do
+    request.complete()
+    if request.request_id and request.client.cancel_request then
+      pcall(function() request.client:cancel_request(request.request_id) end)
+    end
+    responses[index] = { error = timeout_error() }
+  end
+
+  return responses
 end
 
 ---收集文档或指定行的所有可编辑修复，并生成安全 WorkspaceEdit 事务
----@param opts { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean, on_conflict?: 'error' | 'skip' }
+---@param opts? { bufnr?: integer, line?: integer, character?: integer, timeout_ms?: integer, prefer_fix_all?: boolean, on_conflict?: 'error' | 'skip' }
 ---@return table? result
 ---@return table? error
 function M.collect_document_fixes(opts)
   opts = opts or {}
   local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
   local timeout_ms = opts.timeout_ms or 3000
+  local deadline = vim.uv.hrtime() + timeout_ms * 1000000
   local target_line = type(opts.line) == 'number' and opts.line - 1 or nil
   local target_character = type(opts.character) == 'number' and opts.character - 1 or 0
   local prefer_fix_all = opts.prefer_fix_all ~= false and target_line == nil
@@ -137,50 +187,100 @@ function M.collect_document_fixes(opts)
   local errors = {}
   local seen = {}
 
-  local function collect(client, params)
-    local count = 0
-    local response, wait_error = client:request_sync(
-      'textDocument/codeAction', params, timeout_ms, bufnr
-    )
-    local error = request_error(response, wait_error)
-    if error then
-      errors[client.name] = error
-      return nil
-    end
-    for _, candidate in ipairs(response and response.result or {}) do
-      local action, resolve_error = resolve_action(candidate, client, bufnr, timeout_ms)
-      if resolve_error then
-        errors[client.name] = resolve_error
-      end
-      if action then
-        local fingerprint = vim.fn.sha256(vim.json.encode({ client = client.id, edit = action.edit }))
-        if not seen[fingerprint] then
-          seen[fingerprint] = true
-          edits[#edits + 1] = {
-            edit = action.edit,
-            encoding = client.offset_encoding or 'utf-16',
-          }
-          titles[#titles + 1] = action.title or 'Untitled action'
-          client_names[client.name] = true
-          count = count + 1
-        end
-      end
-    end
-    return count
+  local function accept_action(action, client)
+    if action.disabled or action.command or not action.edit then return false end
+    local fingerprint = vim.fn.sha256(vim.json.encode({ client = client.id, edit = action.edit }))
+    if seen[fingerprint] then return false end
+
+    seen[fingerprint] = true
+    edits[#edits + 1] = {
+      edit = action.edit,
+      encoding = client.offset_encoding or 'utf-16',
+    }
+    titles[#titles + 1] = action.title or 'Untitled action'
+    client_names[client.name] = true
+    return true
   end
 
-  for _, client in ipairs(clients) do
-    local fix_all_count = prefer_fix_all and collect(client, fix_all_params(bufnr)) or 0
-    if not errors[client.name] and fix_all_count == 0 then
-      collect(client, request_params(bufnr, target_line, target_character, target_line == nil))
-      if not errors[client.name] then
-        for _, diagnostic in ipairs(client_diagnostics(bufnr, client, target_line)) do
-          collect(client, diagnostic_params(bufnr, diagnostic))
-          if errors[client.name] then break end
+  local function collect_batch(requests)
+    if #requests == 0 then return {} end
+
+    local counts = {}
+    local unresolved = {}
+    local responses = request_batch(requests, 'textDocument/codeAction', bufnr, deadline)
+    for index, item in ipairs(requests) do
+      local response = responses[index]
+      if response.error then
+        errors[item.client.name] = response.error
+      else
+        for _, action in ipairs(response.result or {}) do
+          if not action.disabled
+              and not action.edit
+              and action.data
+              and item.client:supports_method('codeAction/resolve', bufnr) then
+            unresolved[#unresolved + 1] = {
+              client = item.client,
+              params = action,
+            }
+          elseif accept_action(action, item.client) then
+            counts[item.client.id] = (counts[item.client.id] or 0) + 1
+          end
         end
       end
     end
+
+    local resolved = request_batch(unresolved, 'codeAction/resolve', bufnr, deadline)
+    for index, item in ipairs(unresolved) do
+      local response = resolved[index]
+      if response.error then
+        errors[item.client.name] = response.error
+      elseif accept_action(response.result or item.params, item.client) then
+        counts[item.client.id] = (counts[item.client.id] or 0) + 1
+      end
+    end
+
+    return counts
   end
+
+  local fix_all_requests = {}
+  if prefer_fix_all then
+    for _, client in ipairs(clients) do
+      fix_all_requests[#fix_all_requests + 1] = {
+        client = client,
+        params = fix_all_params(bufnr),
+      }
+    end
+  end
+  local fix_all_counts = collect_batch(fix_all_requests)
+
+  local fallback_clients = {}
+  for _, client in ipairs(clients) do
+    if not errors[client.name] and (fix_all_counts[client.id] or 0) == 0 then
+      fallback_clients[#fallback_clients + 1] = client
+    end
+  end
+
+  local quickfix_requests = {}
+  for _, client in ipairs(fallback_clients) do
+    quickfix_requests[#quickfix_requests + 1] = {
+      client = client,
+      params = request_params(bufnr, target_line, target_character, target_line == nil),
+    }
+  end
+  collect_batch(quickfix_requests)
+
+  local diagnostic_requests = {}
+  for _, client in ipairs(fallback_clients) do
+    if not errors[client.name] then
+      for _, diagnostic in ipairs(client_diagnostics(bufnr, client, target_line)) do
+        diagnostic_requests[#diagnostic_requests + 1] = {
+          client = client,
+          params = diagnostic_params(bufnr, diagnostic),
+        }
+      end
+    end
+  end
+  collect_batch(diagnostic_requests)
 
   if not vim.tbl_isempty(errors) then
     return nil, {

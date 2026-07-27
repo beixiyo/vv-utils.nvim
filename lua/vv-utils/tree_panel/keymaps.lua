@@ -1,4 +1,3 @@
----@diagnostic disable: cast-local-type
 -- Tree panel 的可选默认快捷键与帮助面板
 --
 -- tree panel 本身不主动注册快捷键；调用方显式调用 apply/apply_defaults 时才写入 panel buffer
@@ -70,11 +69,11 @@ function M.apply(panel, mappings, opts)
       local target = mapping
       local desc
       if type(mapping) == 'table' then
+        ---@cast mapping VVTreePanelMappingSpec
         assert((mapping.action == nil) ~= (mapping.callback == nil),
           'tree panel mapping spec requires exactly one of action or callback')
         assert(mapping.desc == nil or type(mapping.desc) == 'string',
           'tree panel mapping desc must be a string')
----@diagnostic disable-next-line: cast-local-type
         target = mapping.action or mapping.callback
         desc = mapping.desc
       end

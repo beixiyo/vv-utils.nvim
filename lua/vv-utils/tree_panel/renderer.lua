@@ -6,16 +6,6 @@ local function escape_statusline(text)
   return (text or ''):gsub('%%', '%%%%')
 end
 
----@class VVTreePanelChunk
----@field [1] string
----@field [2]? string
-
----@class VVTreePanelRenderRow
----@field chunks? VVTreePanelChunk[]
----@field text? string
----@field hl? string
----@field virt_text? VVTreePanelChunk[]
----@field virt_text_pos? 'eol'|'overlay'|'right_align'|'inline'  @default 'right_align'
 
 ---@param value VVTreePanelRenderRow|string?
 ---@return VVTreePanelRenderRow

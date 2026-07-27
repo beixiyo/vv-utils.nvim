@@ -2,20 +2,6 @@
 
 local M = {}
 
----@class VVTreePanelNode
----@field id string
----@field label? string
----@field children? VVTreePanelNode[]
----@field expanded? boolean
----@field selectable? boolean
----@field location? { file: string, row: integer, col?: integer }
----@field data? any
-
----@class VVTreePanelRow
----@field node VVTreePanelNode
----@field depth integer
----@field parent? VVTreePanelNode
----@field is_last boolean
 
 ---@param nodes VVTreePanelNode[]
 ---@param folded table<string, boolean>

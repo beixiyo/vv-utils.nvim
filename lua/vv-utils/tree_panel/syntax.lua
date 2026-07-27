@@ -4,12 +4,6 @@
 
 local M = {}
 
----@class VVTreePanelSyntaxInterval
----@field start_col integer
----@field end_col integer
----@field hl string
----@field priority integer
----@field sequence integer
 
 ---@param text string
 ---@param lang string?

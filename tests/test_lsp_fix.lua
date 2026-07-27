@@ -22,10 +22,10 @@ local client = {
   id = 902,
   name = 'fixture-lsp',
   initialized = true,
-  config = { filetypes = { 'typescriptreact' } },
+  config = { filetypes = { 'typescriptreact' }, cmd = { vim.v.progpath } },
   offset_encoding = 'utf-16',
   supports_method = function() return true end,
-  request_sync = function()
+  request = function(_, _, _, callback)
     requests = requests + 1
     local actions = {{
       title = 'Fix rounded',
@@ -45,7 +45,8 @@ local client = {
         }} } },
       }
     end
-    return { result = actions }
+    callback(nil, actions)
+    return true, requests
   end,
 }
 
@@ -64,10 +65,10 @@ assert(vim.fn.bufnr(path) == -1, 'temporary fix buffers must be deleted')
 
 Fs.write_all(path, 'rounded-[8px] p-[16px]\n')
 local transient_requests = 0
-client.request_sync = function()
+client.request = function(_, _, _, callback)
   transient_requests = transient_requests + 1
-  if transient_requests == 1 then return nil, 'timeout' end
-  return { result = {{
+  if transient_requests == 1 then return true, transient_requests end
+  callback(nil, {{
     title = 'Fix all after retry',
     kind = 'quickfix',
     edit = { changes = { [uri] = {
@@ -80,18 +81,67 @@ client.request_sync = function()
         newText = 'p-4',
       },
     } } },
-  }} }
+  }})
+  return true, transient_requests
 end
 local retried = Fix.file({ path = path, timeout_ms = 2000 })
 assert(retried.changed and transient_requests >= 3, 'transient timeouts must retry until stable')
 
 Fs.write_all(path, 'rounded-[8px] p-[16px]\n')
-client.request_sync = function()
-  return nil, { message = 'fixture request timed out' }
+client.request = function()
+  return true, 1
 end
 local failed = Fix.file({ path = path, timeout_ms = 1000 })
 assert(failed.error.code == 'code_action_request_failed', vim.inspect(failed))
 assert(Fs.read_all(path) == 'rounded-[8px] p-[16px]\n', 'failed collection must not edit disk')
+
+vim.lsp.get_clients = function() return {} end
+local no_config, no_config_error = Fix.check_path_support(path, {})
+assert(not no_config and no_config_error.code == 'no_lsp_config', vim.inspect(no_config_error))
+
+local unavailable = 'vv-utils-language-server-that-does-not-exist'
+local executable, executable_error = Fix.check_path_support(path, {{
+  filetypes = { 'typescriptreact' },
+  cmd = { unavailable, '--stdio' },
+}})
+assert(not executable and executable_error.code == 'lsp_executable_missing',
+  vim.inspect(executable_error))
+assert(vim.deep_equal(executable_error.executables, { unavailable }))
+
+local missing_started_at = vim.uv.hrtime()
+local missing_result = Fix.file({
+  path = path,
+  configs = {{
+    filetypes = { 'typescriptreact' },
+    cmd = { unavailable, '--stdio' },
+  }},
+  timeout_ms = 1000,
+})
+local missing_elapsed_ms = (vim.uv.hrtime() - missing_started_at) / 1000000
+assert(missing_result.error.code == 'lsp_executable_missing', vim.inspect(missing_result))
+assert(missing_elapsed_ms < 100,
+  ('missing executables must fail before waiting for LSP attachment, took %.1fms'):format(
+    missing_elapsed_ms
+  ))
+assert(vim.fn.bufnr(path) == -1, 'an unavailable LSP must not create a temporary buffer')
+
+local custom_transport = Fix.check_path_support(path, {{
+  filetypes = { 'typescriptreact' },
+  cmd = function() end,
+}})
+assert(custom_transport, 'function commands cannot be rejected by a static executable precheck')
+
+local mixed_configs = Fix.check_path_support(path, {
+  {
+    filetypes = { 'typescriptreact' },
+    cmd = { unavailable },
+  },
+  {
+    filetypes = { 'typescriptreact' },
+    cmd = { vim.v.progpath, '--headless' },
+  },
+})
+assert(mixed_configs, 'one available matching config is enough to support the path')
 
 vim.lsp.get_clients = original_get_clients
 vim.lsp.get_configs = original_get_configs
