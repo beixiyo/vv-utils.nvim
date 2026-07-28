@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **fs.rename**：在大小写不敏感文件系统上，纯大小写改名（如 `README.MD` → `README.md`）不再被误判为目标已存在。仅当两条路径大小写等价且 `dev` / `ino` 确认指向同一个文件对象时放行；不同文件仍拒绝覆盖
+
 ## 0.4.1 - 2026-07-27
 
 ### Added

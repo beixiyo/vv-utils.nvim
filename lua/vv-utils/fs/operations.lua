@@ -9,6 +9,24 @@ local M = {}
 local function norm(value) return vim.fs.normalize(value) end
 local function dirname(value) return vim.fs.dirname(value) end
 
+---@param first string
+---@param second string
+---@return boolean
+-- 仅放行大小写变更：路径忽略大小写后相同，且文件系统确认两边是同一个对象
+-- `lower()` 不是唯一判据；dev + ino 不同仍视为真实的既有目标并拒绝覆盖
+local function is_case_only_rename(first, second)
+  local first_stat = uv.fs_lstat(first)
+  local second_stat = uv.fs_lstat(second)
+
+  return first:lower() == second:lower()
+    and first_stat ~= nil
+    and second_stat ~= nil
+    and first_stat.dev ~= nil
+    and first_stat.ino ~= nil
+    and first_stat.dev == second_stat.dev
+    and first_stat.ino == second_stat.ino
+end
+
 ---@param directory string 递归 mkdir -p（0755）
 function M.mkdir_p(directory)
   directory = norm(directory)
@@ -63,7 +81,9 @@ function M.rename(source, destination)
   destination = norm(destination)
 
   if source == destination then return end
-  if path.exists(destination) then error('target exists: ' .. destination) end
+  if path.exists(destination) and not is_case_only_rename(source, destination) then
+    error('target exists: ' .. destination)
+  end
 
   M.mkdir_p(dirname(destination))
 
