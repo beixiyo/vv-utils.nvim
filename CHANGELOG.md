@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 - 2026-07-29
+
+### Added
+
+- **hl**：改为 `hl/init.lua` 文件夹模块并保持原公共入口兼容；新增 `register_dimmed(augroup, specs, opts?)`，从现有高亮派生向指定背景降低对比度的颜色，并在 `ColorScheme` 后重新计算
+- **color**：新增提供 `parse()`、`to_hex()`、`to_integer()`、`mix()` 与 `composite()`；统一支持 Neovim integer RGB、`#RGB[A]`、`#RRGGBB[AA]` 和 RGBA 对象
+
 ## 0.4.2 - 2026-07-28
 
 ### Fixed

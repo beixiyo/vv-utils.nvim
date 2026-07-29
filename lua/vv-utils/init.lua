@@ -18,6 +18,7 @@
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
 --   input       声明式输入字段装饰（label / placeholder extmark + key/action 标签）
 --   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
+--   color       RGB / RGBA 解析、格式化、插值与 alpha 合成
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
 --   help_panel  通用 keymap 帮助浮窗（反读 buffer keymap 按分类渲染）
 --   keymap      buffer-local 映射的声明式接管与恢复（按 filetype / 条件自动同步）

@@ -55,7 +55,8 @@
 | `vv-utils.history` | 按字段隔离的输入历史：草稿恢复、去重、条数限制，以及可选的 0600 原子持久化 |
 | `vv-utils.state` | `register(plugin_id, key_id)` 注册插件状态命名空间，写前合并磁盘最新数据并以 0600 原子持久化 |
 | `vv-utils.timer` | `debounce(fn, wait)` / `throttle(fn, limit)`，时间参数支持传入函数实现动态延时 |
-| `vv-utils.hl` | `register(augroup, specs)` 批量注册 highlight（自动 `default=true` + `ColorScheme` 重挂）；`get_fg(name)` |
+| `vv-utils.color` | 颜色解析与转换；支持 integer RGB、`#RGB[A]`、`#RRGGBB[AA]`、RGBA 对象、插值与 alpha 合成 |
+| `vv-utils.hl` | 批量注册 highlight、派生低对比度版本、`ColorScheme` 后重挂与 `get_fg(name)` |
 | `vv-utils.ui_window` | UI buffer 窗口 chrome 管理（关行号 / signcolumn 等），支持 restore |
 | `vv-utils.help_panel` | 通用 keymap 帮助浮窗：反读 buffer mappings 按 desc 前缀分组 |
 | `vv-utils.keymap` | 声明式接管 buffer-local 映射；filetype 或自定义条件失效时自动归还原映射 |
@@ -90,6 +91,26 @@
 - `state.register(plugin_id, key_id)` 返回由 `stdpath('state')/vv-utils/state.json` 支持的字段 handle；每次写入会重读并合并最新磁盘快照，但不提供跨进程锁
 - `drop.register(handler)` 接收 `fun(paths, pos)`；`drop.on_drag(cb)` 订阅拖拽移动和离开事件
 - Kitty DnD 需要 Kitty 0.47 或更高版本，且不能经由 tmux 运行
+
+### 颜色工具
+
+```lua
+local color = require('vv-utils.color')
+
+local rgba = color.parse('#0f08')
+-- { r = 0, g = 255, b = 0, a = 136 }
+
+color.to_hex(rgba)                              -- '#00ff0088'
+color.to_integer('#00ff00')                    -- 0x00ff00
+color.mix('#ff0000', '#0000ff', 0.5)           -- RGBA 对象
+color.composite('#ff000080', '#0000ff')        -- source-over RGBA 对象
+```
+
+`parse()` 接受 `0xRRGGBB`、`#RGB`、`#RGBA`、`#RRGGBB`、`#RRGGBBAA` 或
+`{ r, g, b, a? }`。`to_hex()` 默认输出小写，并仅在非不透明时自动包含 alpha；
+可通过 `alpha = 'always'` 或 `'never'` 覆盖。`to_integer()` 遇到透明颜色时默认报错，
+必须显式提供 `background` 进行合成，或设置 `discard_alpha = true`
+`mix()` 对四个 RGBA 通道做插值；`composite()` 执行标准 source-over alpha 合成
 
 ## 引用方式
 

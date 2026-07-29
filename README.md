@@ -56,7 +56,8 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.history` | Per-field input history with draft restoration, deduplication, bounded entries, and optional 0600 atomic persistence |
 | `vv-utils.state` | Namespaced JSON state shared by plugins through `register(plugin_id, key_id)`, with merge-before-write and 0600 atomic persistence |
 | `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
-| `vv-utils.hl` | Batch highlight `register` with `default=true` and ColorScheme refresh, plus `get_fg` lookup |
+| `vv-utils.color` | Color parsing and conversion for integer RGB, `#RGB[A]`, `#RRGGBB[AA]`, and RGBA objects, plus interpolation and alpha compositing |
+| `vv-utils.hl` | Highlight registration, dimmed derivatives, ColorScheme refresh, and `get_fg` lookup |
 | `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
 | `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
 | `vv-utils.keymap` | Declaratively claim buffer-local mappings while active, then restore the previous mapping when filetype or custom conditions no longer match |
@@ -91,6 +92,27 @@ Important details:
 - `state.register(plugin_id, key_id)` returns a field handle backed by `stdpath('state')/vv-utils/state.json`; each write reloads and merges the latest disk snapshot but does not provide inter-process locking
 - `drop.register(handler)` receives `fun(paths, pos)`, while `drop.on_drag(cb)` subscribes to movement and leave events
 - Kitty DnD requires Kitty 0.47 or newer and does not operate through tmux
+
+### Color utilities
+
+```lua
+local color = require('vv-utils.color')
+
+local rgba = color.parse('#0f08')
+-- { r = 0, g = 255, b = 0, a = 136 }
+
+color.to_hex(rgba)                              -- '#00ff0088'
+color.to_integer('#00ff00')                    -- 0x00ff00
+color.mix('#ff0000', '#0000ff', 0.5)           -- RGBA object
+color.composite('#ff000080', '#0000ff')        -- source-over RGBA object
+```
+
+`parse()` accepts `0xRRGGBB`, `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, or
+`{ r, g, b, a? }`. `to_hex()` uses lowercase and includes alpha automatically when it is not
+opaque; set `alpha = 'always'` or `'never'` to override it. `to_integer()` rejects translucent
+colors unless `background` is provided for compositing or `discard_alpha = true` is explicit.
+`mix()` interpolates all four RGBA channels; `composite()` performs standard source-over alpha
+compositing.
 
 ## Imports
 

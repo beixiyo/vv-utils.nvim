@@ -65,6 +65,44 @@ test('diagnostics.lua: DiagnosticHint icon', function()
   assert(sym and sym.hl == 'DiagnosticHint', '期望 DiagnosticHint, 实际: ' .. (sym and sym.hl or 'nil'))
 end)
 
+test('color: Hex RGBA 经 alpha 合成输出可用 Hex', function()
+  local color = require('vv-utils.color')
+  local parsed = color.parse('#0f08')
+  assert(
+    parsed.r == 0 and parsed.g == 255 and parsed.b == 0 and parsed.a == 136,
+    '短 RGBA Hex 未按 CSS 规则展开'
+  )
+  assert(
+    color.to_hex(color.composite(parsed, '#0000ff')) == '#008877',
+    'RGBA source-over 合成结果错误'
+  )
+end)
+
+test('hl: register_dimmed 向目标背景降低前景对比度', function()
+  local hl = require('vv-utils.hl')
+  hl.register('VVUtilsDimSourceTest', {
+    VVUtilsDimSource = { fg = '#00ff00', bold = true },
+  }, { default = false })
+  vim.api.nvim_set_hl(0, 'VVUtilsDimBackground', { bg = '#000000' })
+  hl.register_dimmed('VVUtilsDimTest', {
+    VVUtilsDimTarget = 'VVUtilsDimSource',
+  }, {
+    amount = 0.7,
+    background = 'VVUtilsDimBackground',
+  })
+
+  local target = vim.api.nvim_get_hl(0, { name = 'VVUtilsDimTarget', link = false })
+  assert(target.fg == 0x004d00, ('期望 #004d00，实际 #%06x'):format(target.fg or 0))
+  assert(target.bold == true, '派生高亮应保留来源样式')
+
+  vim.api.nvim_set_hl(0, 'VVUtilsDimSource', {})
+  vim.api.nvim_set_hl(0, 'VVUtilsDimTarget', {})
+  vim.cmd('doautocmd ColorScheme')
+  assert(vim.wait(100, function()
+    return vim.api.nvim_get_hl(0, { name = 'VVUtilsDimTarget', link = false }).fg == 0x004d00
+  end), 'ColorScheme 后未等待来源高亮恢复再派生')
+end)
+
 -- 3. Git 行级 diff 解析
 test('git: parse_diff_lines 行级 A/C/D', function()
   package.loaded['vv-utils.git'] = nil
