@@ -7,10 +7,7 @@ local Scanner = require('vv-utils.path_completion.scanner')
 
 local M = {}
 
----@class vv-utils.path_completion.Item
----@field word string
----@field abbr string
----@field kind string
+---@class vv-utils.path_completion.Item: VVCompletionItem
 ---@field menu string
 
 ---@param path string
@@ -66,11 +63,11 @@ end
 
 ---@param source string
 ---@param cwd string
----@param opts { directories_only: boolean, glob: boolean, max_items: integer, recursive: boolean?, timeout_ms: integer }
----@return vv-utils.path_completion.Item[]
-function M.complete(source, cwd, opts)
+---@param opts { directories_only: boolean, glob: boolean, max_items: integer, scan_max_items: integer, recursive: boolean?, timeout_ms: integer }
+---@return {directory_part: string, needle: string, scan_dir: string}?, vv-utils.path_completion.Item[]?
+local function request(source, cwd, opts)
   if source == '~' and not opts.glob then
-    return { { word = '~/', abbr = '~/', kind = 'Folder', menu = '[path]' } }
+    return nil, { { word = '~/', abbr = '~/', kind = 'Folder', menu = '[path]' } }
   end
 
   cwd = normalized(cwd)
@@ -80,11 +77,10 @@ function M.complete(source, cwd, opts)
   needle = needle or source
 
   if opts.glob and (Parser.has_unescaped_glob(directory_part) or Parser.has_unescaped_glob(needle)) then
-    return {}
+    return nil, {}
   end
 
   local fs_directory = Parser.unescape_glob(directory_part)
-  local fs_needle = Parser.unescape_glob(needle)
   local scan_dir
 
   if not opts.glob and fs_directory:sub(1, 2) == '~/' then
@@ -95,14 +91,83 @@ function M.complete(source, cwd, opts)
     scan_dir = vim.fs.joinpath(cwd, fs_directory)
   end
 
-  local direct = Scanner.direct(normalized(scan_dir), fs_needle, opts)
-  local items = to_items(direct, directory_part, opts.glob)
+  return {
+    directory_part = directory_part,
+    needle = needle,
+    scan_dir = normalized(scan_dir),
+  }, nil
+end
+
+---@param source string
+---@param cwd string
+---@param opts { directories_only: boolean, glob: boolean, max_items: integer, scan_max_items: integer, recursive: boolean?, timeout_ms: integer }
+---@return vv-utils.path_completion.Item[]
+function M.complete(source, cwd, opts)
+  local prepared, immediate = request(source, cwd, opts)
+  if immediate then return immediate end
+  assert(prepared, 'path completion request was not prepared')
+  ---@cast prepared {directory_part: string, needle: string, scan_dir: string}
+  local fs_needle = Parser.unescape_glob(prepared.needle)
+  local direct = Scanner.direct(prepared.scan_dir, fs_needle, opts)
+  local items = to_items(direct, prepared.directory_part, opts.glob)
   if opts.recursive and source:sub(1, 2) ~= './' then
-    local parent = Parser.strip_relative_prefix(Parser.unescape_glob(directory_part))
-    local descendants = Scanner.descendants(Parser.unescape_glob(needle), parent, cwd, opts)
+    local parent = Parser.strip_relative_prefix(Parser.unescape_glob(prepared.directory_part))
+    local descendants = Scanner.descendants(fs_needle, parent, normalized(cwd), opts)
     items = merge_items(items, to_items(descendants, '', opts.glob), opts.max_items)
   end
   return items
+end
+
+---异步生成路径候选；当前目录分批扫描，递归路径通过可取消 fd 进程查询
+---@param source string
+---@param cwd string
+---@param opts { directories_only: boolean, glob: boolean, max_items: integer, scan_max_items: integer, recursive: boolean?, timeout_ms: integer }
+---@param callback fun(items: vv-utils.path_completion.Item[])
+---@return fun() cancel
+function M.complete_async(source, cwd, opts, callback)
+  local prepared, immediate = request(source, cwd, opts)
+  if immediate then
+    local cancelled = false
+    vim.schedule(function()
+      if not cancelled then callback(immediate) end
+    end)
+    return function() cancelled = true end
+  end
+  assert(prepared, 'path completion request was not prepared')
+  ---@cast prepared {directory_part: string, needle: string, scan_dir: string}
+
+  local cancelled = false
+  local pending = opts.recursive and source:sub(1, 2) ~= './' and 2 or 1
+  local direct_items = {}
+  local descendant_items = {}
+  local cancels = {}
+  local fs_needle = Parser.unescape_glob(prepared.needle)
+
+  local function done()
+    if cancelled then return end
+    pending = pending - 1
+    if pending > 0 then return end
+    callback(merge_items(direct_items, descendant_items, opts.max_items))
+  end
+
+  cancels[#cancels + 1] = Scanner.direct_async(prepared.scan_dir, fs_needle, opts, function(matches)
+    direct_items = to_items(matches, prepared.directory_part, opts.glob)
+    done()
+  end)
+
+  if pending == 2 then
+    local parent = Parser.strip_relative_prefix(Parser.unescape_glob(prepared.directory_part))
+    cancels[#cancels + 1] = Scanner.descendants_async(fs_needle, parent, normalized(cwd), opts, function(matches)
+      descendant_items = to_items(matches, '', opts.glob)
+      done()
+    end)
+  end
+
+  return function()
+    if cancelled then return end
+    cancelled = true
+    for _, cancel in ipairs(cancels) do cancel() end
+  end
 end
 
 return M

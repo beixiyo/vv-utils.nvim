@@ -120,15 +120,15 @@ function M.split(raw)
   return patterns, nil
 end
 
----把一条 VS Code 风格搜索简写编译为 ripgrep glob
+---把一条 VS Code 风格搜索简写编译为通用 glob pattern
 ---@param source string
----@param opts? vv-utils.glob.RgCompileOpts
----@return string[]? patterns
+---@param opts? vv-utils.glob.CompileOpts
+---@return vv-utils.glob.Compiled? compiled
 ---@return string? error
-function M.compile_rg(source, opts)
+function M.compile(source, opts)
   opts = opts or {}
   source = vim.trim(source or '')
-  if source == '' then return {}, nil end
+  if source == '' then return { patterns = {}, negated = opts.negate == true }, nil end
 
   local negated = opts.negate == true
   if source:sub(1, 1) == '!' then
@@ -151,41 +151,80 @@ function M.compile_rg(source, opts)
   if body == '' then body = '**' end
   if not root_relative and body:sub(1, 1) == '.' then body = '*' .. body end
 
-  local prefix = negated and '!' or ''
   local patterns = {}
 
   if root_relative then
     local anchored = body == '**' and '/**' or '/' .. body
-    append_unique(patterns, prefix .. collapse_globstars(anchored .. '/**'))
-    append_unique(patterns, prefix .. collapse_globstars(anchored))
+    append_unique(patterns, collapse_globstars(anchored .. '/**'))
+    append_unique(patterns, collapse_globstars(anchored))
   else
-    append_unique(patterns, prefix .. collapse_globstars('**/' .. body .. '/**'))
-    append_unique(patterns, prefix .. collapse_globstars('**/' .. body))
+    append_unique(patterns, collapse_globstars('**/' .. body .. '/**'))
+    append_unique(patterns, collapse_globstars('**/' .. body))
   end
 
-  return patterns, nil
+  return { patterns = patterns, negated = negated }, nil
 end
 
----拆分并编译一组 glob，保持用户输入顺序
+---拆分并编译一组通用 glob，保持用户输入顺序
 ---@param raw string?
----@param opts? vv-utils.glob.RgCompileOpts
----@return string[]? patterns
+---@param opts? vv-utils.glob.CompileOpts
+---@return vv-utils.glob.Compiled[]? compiled
 ---@return string? error
-function M.compile_rg_list(raw, opts)
+function M.compile_list(raw, opts)
   local sources, split_error = M.split(raw)
   if not sources then return nil, split_error end
 
-  local patterns = {}
+  local compiled = {}
   for _, source in ipairs(sources) do
-    local compiled, compile_error = M.compile_rg(source, opts)
-    if not compiled then return nil, compile_error end
-    vim.list_extend(patterns, compiled)
+    local entry, compile_error = M.compile(source, opts)
+    if not entry then return nil, compile_error end
+    compiled[#compiled + 1] = entry
   end
 
+  return compiled, nil
+end
+
+---把一条搜索简写编译为 ripgrep glob
+---@param source string
+---@param opts? vv-utils.glob.CompileOpts
+---@return string[]? patterns
+---@return string? error
+function M.compile_rg(source, opts)
+  local compiled, compile_error = M.compile(source, opts)
+  if not compiled then return nil, compile_error end
+
+  local prefix = compiled.negated and '!' or ''
+  local patterns = {}
+  for _, pattern in ipairs(compiled.patterns) do
+    patterns[#patterns + 1] = prefix .. pattern
+  end
   return patterns, nil
 end
 
----@class vv-utils.glob.RgCompileOpts
+---拆分并编译一组 ripgrep glob，保持用户输入顺序
+---@param raw string?
+---@param opts? vv-utils.glob.CompileOpts
+---@return string[]? patterns
+---@return string? error
+function M.compile_rg_list(raw, opts)
+  local compiled, compile_error = M.compile_list(raw, opts)
+  if not compiled then return nil, compile_error end
+
+  local patterns = {}
+  for _, entry in ipairs(compiled) do
+    local prefix = entry.negated and '!' or ''
+    for _, pattern in ipairs(entry.patterns) do
+      patterns[#patterns + 1] = prefix .. pattern
+    end
+  end
+  return patterns, nil
+end
+
+---@class vv-utils.glob.Compiled
+---@field patterns string[] 标准 glob pattern；以 / 开头表示相对搜索根锚定
+---@field negated boolean 是否为排除规则
+
+---@class vv-utils.glob.CompileOpts
 ---@field negate? boolean 强制生成排除 pattern @default false
 
 return M

@@ -7,7 +7,7 @@
 --   line 0 = 空串，extmark overlay 画 label：mode badge / 静态 label + <S-Tab> 提示 + 实时状态
 --   line 1 = 用户输入；空时 overlay 显示 placeholder（第一字符即覆盖），输入行保持干净
 --
--- 光标锁在 line 1：CursorMoved/CursorMovedI 无差别拉回（覆盖键盘/鼠标/折叠跳转，比 keymap 黑名单稳）
+-- 光标锁在 line 1；TextChanged 同时守住 label + query 双行结构，不枚举 Normal 删除命令
 -- 交互：边打边过滤（debounce）→ on_change；<CR> → on_accept（保留过滤态）；
 --       <Esc> / normal q / 失焦 → on_cancel。先 stopinsert 再 close（否则 Insert 模式残留写错 buffer）
 --
@@ -18,6 +18,7 @@
 -- 宿主在自身销毁时调 handle.close()，连带关掉浮窗（幂等）
 
 local hl = require('vv-utils.hl')
+local Completion = require('vv-utils.completion')
 local Input = require('vv-utils.input')
 local Loading = require('vv-utils.loading')
 
@@ -100,19 +101,20 @@ local function setup_decorations(buf, opts, busy_ctx)
     if mode then
       local md = (opts.mode_display and opts.mode_display(mode))
         or { icon = '', label = mode, hl = 'VVPromptLabel' }
+      local mode_icon = md.icon or ''
+      local mode_label = md.label or mode
+      local badge = mode_icon ~= '' and (mode_icon .. ' ' .. mode_label) or mode_label
       segs = {
         { ' ',                        'VVPromptHint' },
-        { md.icon .. ' ' .. md.label, md.hl },
+        { badge,                      md.hl },
         { '  ',                       'VVPromptHint' },
         { '⇧Tab',                     'VVPromptIcon' },
         { ' switch',                  'VVPromptHint' },
       }
     else
-      segs = {
-        { ' ',          'VVPromptHint' },
-        { icon .. ' ',  'VVPromptIcon' },
-        { label,        'VVPromptLabel' },
-      }
+      segs = { { ' ', 'VVPromptHint' } }
+      if icon ~= '' then segs[#segs + 1] = { icon .. ' ', 'VVPromptIcon' } end
+      segs[#segs + 1] = { label, 'VVPromptLabel' }
     end
 
     -- 状态：busy → spinner 帧 + busy 文案；否则 set_status 推送 > get_status 拉取
@@ -182,6 +184,17 @@ local function setup_keymaps(buf, opts, ctx)
     opts.on_cancel()
   end, { buffer = buf, nowait = true, silent = true })
 
+  -- 输入行行首的 Backspace 不得越过结构边界，否则光标会落入 label 占位行
+  vim.keymap.set('i', '<BS>', function()
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    if cursor[1] ~= INPUT_LNUM then
+      pcall(vim.api.nvim_win_set_cursor, 0, { INPUT_LNUM, 0 })
+      return ''
+    end
+    if cursor[2] == 0 then return '' end
+    return '<BS>'
+  end, { buffer = buf, expr = true, nowait = true, silent = true })
+
   -- <S-Tab>：循环切换模式（焦点不离开输入框），切完立即重画 badge
   if opts.on_cycle_mode then
     map('<S-Tab>', function()
@@ -221,6 +234,7 @@ function M.open(anchor_win, opts)
 
   local closed = false
   local cancel_debounce = nil
+  local detach_completion = opts.completion and Completion.attach(buf, opts.completion) or nil
   local aug_name = 'vv-utils.prompt.' .. buf
 
   local busy_ctx = { busy = false, label = '', frame_char = '' }
@@ -233,6 +247,35 @@ function M.open(anchor_win, opts)
     return vim.api.nvim_buf_get_lines(buf, INPUT_ROW, INPUT_ROW + 1, false)[1] or ''
   end
 
+  local last_valid_query = initial
+  local repairing_structure = false
+
+  ---恢复 label + query 双行不变量
+  ---@return boolean repaired
+  ---@return boolean query_changed
+  local function guard_structure()
+    if repairing_structure or not vim.api.nvim_buf_is_valid(buf) then return false, false end
+
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    if #lines == PROMPT_HEIGHT and lines[LABEL_ROW + 1] == '' then
+      last_valid_query = lines[INPUT_ROW + 1] or ''
+      return false, false
+    end
+
+    local query = #lines == 1 and lines[1] == '' and '' or last_valid_query
+    local query_changed = query ~= last_valid_query
+    repairing_structure = true
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '', query })
+    repairing_structure = false
+    last_valid_query = query
+
+    if vim.api.nvim_win_is_valid(win) then
+      local cursor = vim.api.nvim_win_get_cursor(win)
+      pcall(vim.api.nvim_win_set_cursor, win, { INPUT_LNUM, math.min(cursor[2], #query) })
+    end
+    return true, query_changed
+  end
+
   local function stop_spinner()
     if ticker_stop then ticker_stop(); ticker_stop = nil end
   end
@@ -241,7 +284,10 @@ function M.open(anchor_win, opts)
     if closed then return end
     closed = true
     stop_spinner()
+
+    if detach_completion then detach_completion(); detach_completion = nil end
     if cancel_debounce then pcall(cancel_debounce) end
+
     pcall(vim.api.nvim_del_augroup_by_name, aug_name)
     if vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_win_close, win, true)
@@ -295,12 +341,21 @@ function M.open(anchor_win, opts)
     redraw()
   end, opts.debounce or 30)
 
+  local function notify_change()
+    if opts.on_input then opts.on_input(get_query()) end
+    redraw()  -- 占位/label 立即刷新（首字符即覆盖 placeholder），过滤走防抖
+    on_change_debounced()
+  end
+
   vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChanged' }, {
     group = aug, buffer = buf,
     callback = function()
-      if opts.on_input then opts.on_input(get_query()) end
-      redraw()  -- 占位/label 立即刷新（首字符即覆盖 placeholder），过滤走防抖
-      on_change_debounced()
+      local repaired, query_changed = guard_structure()
+      if repaired and not query_changed then
+        redraw()
+        return
+      end
+      notify_change()
     end,
   })
 
@@ -362,4 +417,5 @@ end
 ---@field on_open_in?    fun(kind: 'split'|'vsplit')  按 Ctrl-X/Ctrl-V 分屏打开当前 match
 ---@field debounce?      integer|fun(): integer       防抖毫秒（支持自适应函数）@default 30
 ---@field spinner?       VVPromptSpinnerOpts          提供则启用 busy spinner（配合 handle.set_busy）
+---@field completion?    VVCompletionDescriptor       当前输入 buffer 的补全策略
 return M

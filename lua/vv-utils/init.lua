@@ -3,6 +3,8 @@
 --   path        路径工具
 --   glob        VS Code 风格搜索 glob 拆分与 ripgrep pattern 编译
 --   path_completion 基于 cwd 的 glob / 目录路径候选（不绑定具体输入 UI）
+--   completion  buffer-local 补全 descriptor 生命周期与候选策略
+--   blink       【可选集成】统一 descriptor 到 Blink CompletionItem 的 source
 --   yaml        轻量解析
 --   ui_window   UI buffer 的窗口 chrome 管理
 --   fs          fs 原语 + 多文件完整内容事务（new_transaction）

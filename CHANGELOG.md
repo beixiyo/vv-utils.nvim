@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 - 2026-07-29
+
+### Added
+
+- **completion / blink**：新增 buffer-local 补全 descriptor 与可选 `vv-utils.blink` source
+- **glob / path_completion**：新增框架无关的 `compile()` / `compile_list()` 结果
+
+### Changed
+
+- **path_completion**：最终候选默认上限从 200 收紧为 50；递归 `fd` 原始结果预算改为独立 `scan_max_items`（默认 1000），不再由 `max_items * 20` 隐式放大
+- **path_completion / blink**：descriptor 补全链支持异步 callback 与取消；当前目录分批扫描，递归 `fd` 不再同步等待或逐项 `fs_stat`
+- **glob**：`compile_rg()` / `compile_rg_list()` 改为通用编译结果之上的 ripgrep adapter
+
+### Fixed
+
+- **prompt 输入边界**：用双行结构守卫统一处理 `dd`、`dG` 等跨行删除；空输入继续按 Backspace 也不会越过输入行
+- **prompt label 间距**：icon 为空时不再保留无意义的图标后空格
+
 ## 0.4.3 - 2026-07-29
 
 ### Added
@@ -72,7 +90,7 @@
 - **glob**：新增 VS Code 风格搜索 glob 编译。支持顶层逗号拆分、brace / 字符类 / 转义逗号、`./` 搜索根锚定、`!` 排除，并同时生成路径本体与目录后代 pattern，避免通过扩展名猜测文件/目录
 - **fs_transaction**：新增可实例化的文件内容事务。每个实例独立保存最近一次成功快照，统一负责全量预检、逐文件原子写入、写后校验、失败补偿回滚与单层撤回；默认拒绝覆盖未保存的 Neovim buffer
 
-## [0.1.0] - 2026-07-13
+## 0.1.0 - 2026-07-13
 
 ### Added
 

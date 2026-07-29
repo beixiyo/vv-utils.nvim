@@ -78,6 +78,20 @@ assert_list('列表编译保持条目和展开顺序', compiled, {
   '!/packages/core/src',
 })
 
+local generic = assert(glob.compile_list('core/src, !./vendor'))
+assert(vim.deep_equal(generic, {
+  {
+    patterns = { '**/core/src/**', '**/core/src' },
+    negated = false,
+  },
+  {
+    patterns = { '/vendor/**', '/vendor' },
+    negated = true,
+  },
+}), vim.inspect(generic))
+passed = passed + 1
+print('PASS: 通用编译结果保留 pattern 与排除语义')
+
 local _, brace_error = glob.split('*.{ts,tsx')
 assert(brace_error == 'unclosed { in glob pattern', brace_error)
 passed = passed + 1

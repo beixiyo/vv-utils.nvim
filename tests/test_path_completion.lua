@@ -83,6 +83,37 @@ test('光标位于输入中间时只读取光标前缀', function()
   assert(item(result, './src/components/'))
 end)
 
+test('已有索引补全复用 glob 分段、锚定与目录类型', function()
+  local paths = {
+    'packages/',
+    'packages/core/',
+    'packages/core/src/',
+    'src/',
+    'src/components/',
+    'file,name.txt',
+  }
+  local directories = {
+    ['packages/'] = true,
+    ['packages/core/'] = true,
+    ['packages/core/src/'] = true,
+    ['src/'] = true,
+    ['src/components/'] = true,
+  }
+  local opts = {
+    max_items = 10,
+    is_directory = function(path) return directories[path] == true end,
+  }
+
+  assert(item(completion.glob_from_paths('core/sr', paths, opts), 'packages/core/src/').kind == 'Folder')
+  assert(item(completion.glob_from_paths('./sr', paths, opts), './src/'))
+  assert(#completion.glob_from_paths('./core', paths, opts).items == 0)
+
+  local segmented = completion.glob_from_paths('*.lua, !file', paths, opts)
+  assert(segmented.start_col == #'*.lua, ')
+  assert(item(segmented, '!file\\,name.txt').kind == 'File')
+  assert(#completion.glob_from_paths('src/*', paths, opts).items == 0)
+end)
+
 test('Cwd 补全只返回目录', function()
   local result = completion.directory('cwd-', { cwd = root })
   assert(item(result, 'cwd-only/').kind == 'Folder')
@@ -107,6 +138,53 @@ end)
 test('无效 cwd 安静返回空候选', function()
   local result = completion.glob('core', { cwd = root .. '/missing' })
   assert(#result.items == 0)
+end)
+
+test('最终候选数量可独立配置', function()
+  vim.fn.mkdir(root .. '/many', 'p')
+  for index = 1, 8 do
+    vim.fn.writefile({ 'x' }, string.format('%s/many/item-%02d.txt', root, index))
+  end
+
+  local result = completion.glob('./many/item', {
+    cwd = root,
+    max_items = 3,
+    scan_max_items = 20,
+  })
+  assert(#result.items == 3, #result.items)
+end)
+
+test('fd 在扫描预算前应用 basename 和 parent 约束', function()
+  if vim.fn.executable('fd') ~= 1 then return end
+
+  for index = 1, 80 do
+    local directory = string.format('%s/noise-%02d', root, index)
+    vim.fn.mkdir(directory, 'p')
+    vim.fn.writefile({ 'x' }, directory .. '/xfoo-target.txt')
+  end
+  vim.fn.mkdir(root .. '/deep/one', 'p')
+  vim.fn.writefile({ 'x' }, root .. '/deep/one/foo-target.txt')
+
+  local result = completion.glob('one/foo-target', {
+    cwd = root,
+    max_items = 10,
+    scan_max_items = 1,
+  })
+  assert(item(result, 'deep/one/foo-target.txt'))
+end)
+
+test('异步路径补全返回可取消请求并产生相同候选', function()
+  local result
+  local cancel = completion.glob_async('core', {
+    cwd = root,
+    max_items = 10,
+    scan_max_items = 20,
+  }, function(value) result = value end)
+
+  assert(type(cancel) == 'function')
+  assert(result == nil, 'async completion should not synchronously block for results')
+  assert(vim.wait(1000, function() return result ~= nil end), 'async completion timed out')
+  assert(item(result, 'packages/core/'))
 end)
 
 vim.fn.delete(root, 'rf')

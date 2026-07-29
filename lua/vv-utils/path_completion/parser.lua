@@ -108,6 +108,31 @@ function M.glob_segment_start(input, cursor)
   return start - 1
 end
 
+---解析光标所在的 glob 分段
+---@param input string?
+---@param cursor? integer 0-based byte offset
+---@return {input:string, cursor:integer, start_col:integer, prefix:string, source:string}
+function M.glob_input(input, cursor)
+  input = input or ''
+  cursor = math.max(0, math.min(cursor or #input, #input))
+  local start_col = M.glob_segment_start(input, cursor)
+  local source = input:sub(start_col + 1, cursor)
+  local prefix = ''
+
+  if source:sub(1, 1) == '!' then
+    prefix = '!'
+    source = source:sub(2)
+  end
+
+  return {
+    input = input,
+    cursor = cursor,
+    start_col = start_col,
+    prefix = prefix,
+    source = source,
+  }
+end
+
 ---@param value string
 ---@return string
 function M.strip_relative_prefix(value)

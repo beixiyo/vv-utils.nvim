@@ -43,8 +43,10 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | Module | Description |
 |---|---|
 | `vv-utils.path` | Path normalization, middle-segment collapsing, Git-first project-root discovery, and current-directory lookup |
-| `vv-utils.glob` | VS Code-style search glob splitting and expansion into root-anchored or any-depth ripgrep patterns |
-| `vv-utils.path_completion` | UI-agnostic path candidates for comma-separated search globs and directory-only inputs; unanchored fragments can resolve at any depth via `fd` |
+| `vv-utils.glob` | VS Code-style search glob splitting into framework-neutral root-anchored or any-depth patterns, plus a ripgrep adapter |
+| `vv-utils.path_completion` | UI-agnostic path candidates for glob and directory inputs from either cancellable `fd` lookup or a caller-owned relative-path index |
+| `vv-utils.completion` | Buffer-local completion descriptors for declaring candidate strategy and lifecycle |
+| `vv-utils.blink` | Optional Blink adapter for active completion descriptors; defaults to 50 final candidates and a 1000-entry scan budget |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
 | `vv-utils.fs` | Filesystem primitives plus `new_transaction()` for snapshot validation, compensating rollback, and one-level undo |
 | `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
@@ -124,6 +126,7 @@ path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 
 
 local glob = require('vv-utils.glob')
 glob.compile_rg_list('*.{ts,tsx}, ./packages/core/src/')
+glob.compile_list('core/src, !./vendor') -- generic patterns plus negation
 
 local utils = require('vv-utils')
 utils.path.get_root()

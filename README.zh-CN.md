@@ -42,8 +42,10 @@
 | 模块 | 说明 |
 |------|------|
 | `vv-utils.path` | `norm(p)` 规范化路径、`collapse_middle(path, opts?)` 折叠中间层级、`find_root(path, opts?)` 优先 Git 的项目根扫描、`get_root(buf?)`、`get_cwd()` |
-| `vv-utils.glob` | VS Code 风格搜索 glob：按顶层逗号拆分，并编译为根锚定或任意深度的 ripgrep pattern |
-| `vv-utils.path_completion` | 不绑定 UI 的路径候选：支持光标所在 glob 分段、`!` / `./` 保留、纯目录输入，并通过 `fd` 补全任意深度的未锚定片段 |
+| `vv-utils.glob` | VS Code 风格搜索 glob：按顶层逗号拆分，生成框架无关的根锚定或任意深度 pattern，并提供 ripgrep adapter |
+| `vv-utils.path_completion` | 不绑定 UI 的 glob 与目录路径候选；可通过 `fd` 查询文件系统，也可复用调用方已有的相对路径索引 |
+| `vv-utils.completion` | buffer-local 补全 descriptor，用于声明候选策略与生命周期 |
+| `vv-utils.blink` | 可选 Blink adapter，读取当前 descriptor；默认最终返回 50 条，扫描预算 1000 条 |
 | `vv-utils.yaml` | 轻量 YAML 解析（够用于 `pnpm-workspace.yaml` 等简单配置） |
 | `vv-utils.fs` | fs 原语，以及提供快照校验、失败补偿回滚与单层撤回的 `new_transaction()` |
 | `vv-utils.git` | 异步 git 索引：`index(root, cb)` 返回状态、忽略路径、`is_ignored` 与重命名映射；`diff_lines(path, cb, opts?)` 获取单侧行级标记，支持 `from_rev` / `to_rev` 任意 revision 范围及 `side` 新旧侧投影；`diff_line_sets(path, cb)` 同时获取 staged / unstaged 并把 staged 映射到 worktree；`symbol_for()` / `register_hl()` 提供共享装饰 |
@@ -123,6 +125,18 @@ path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 
 
 local glob = require('vv-utils.glob')
 glob.compile_rg_list('*.{ts,tsx}, ./packages/core/src/')
+glob.compile_list('core/src, !./vendor') -- 通用 pattern + negated 语义
+
+local detach = require('vv-utils.completion').attach(buf, require('vv-utils.completion').path({
+  mode = 'glob',
+  cwd = cwd,
+}))
+
+-- Blink 宿主只需注册一次；没有 descriptor 的 buffer 会自动禁用
+-- providers.vv_completion = {
+--   module = 'vv-utils.blink',
+--   opts = { max_items = 50, scan_max_items = 1000, timeout_ms = 250 },
+-- }
 
 -- 或走 facade
 local utils = require('vv-utils')
