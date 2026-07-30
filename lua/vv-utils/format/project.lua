@@ -8,16 +8,6 @@ local Text = require('vv-utils.format.text')
 
 local M = {}
 
----@param path string
----@return boolean
-local function is_binary(path)
-  local file = io.open(path, 'rb')
-  if not file then return true end
-  local chunk = file:read(8192) or ''
-  file:close()
-  return chunk:find('\0', 1, true) ~= nil
-end
-
 ---@param opts vv-utils.format.ProjectOpts
 ---@param config { prose_filetypes: table<string, boolean>, punct: string[] }
 ---@return { scanned: integer, changed: integer, skipped_binary: integer, files: string[] }
@@ -40,7 +30,8 @@ function M.clean(opts, config)
     if relative_path ~= '' then
       local path = root .. '/' .. relative_path
       if vim.uv.fs_stat(path) then
-        if is_binary(path) then
+        local info = Fs.inspect_file(path)
+        if not info.readable or info.binary then
           stat.skipped_binary = stat.skipped_binary + 1
         else
           local ok, content = pcall(Fs.read_all, path)

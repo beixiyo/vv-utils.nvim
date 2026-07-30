@@ -1,6 +1,8 @@
 -- 文件系统公共入口
 
 local buffer = require('vv-utils.fs.buffer')
+local file_info = require('vv-utils.fs.file_info')
+local file_info_highlight = require('vv-utils.fs.file_info_highlight')
 local io = require('vv-utils.fs.io')
 local operations = require('vv-utils.fs.operations')
 local path = require('vv-utils.fs.path')
@@ -21,6 +23,11 @@ return {
   write_all = io.write_all,
   load_json = io.load_json,
   save_json = io.save_json,
+
+  inspect_file = file_info.inspect,
+  is_binary = file_info.is_binary,
+  file_info_lines = file_info.lines,
+  highlight_file_info = file_info_highlight.apply,
 
   sync_buffers = buffer.sync_buffers,
   new_transaction = transaction.new,

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 - 2026-07-30
+
+### Added
+
+- **fs 文件探测**：新增 `inspect_file()` / `is_binary()`。新增 `file_info_lines()` 与 `highlight_file_info()`
+
+### Changed
+
+- **format.project**：二进制判断复用 `vv-utils.fs`
+- **exec 错误信息**：未知文件类型与缺少可用 runner 的用户提示统一改为英文
+
 ## 0.5.0 - 2026-07-29
 
 ### Added

@@ -48,7 +48,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.completion` | Buffer-local completion descriptors for declaring candidate strategy and lifecycle |
 | `vv-utils.blink` | Optional Blink adapter for active completion descriptors; defaults to 50 final candidates and a 1000-entry scan budget |
 | `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
-| `vv-utils.fs` | Filesystem primitives plus `new_transaction()` for snapshot validation, compensating rollback, and one-level undo |
+| `vv-utils.fs` | Filesystem primitives; `inspect_file()` / `is_binary()` content-based file classification plus English `file_info_lines()` / `highlight_file_info()` metadata presentation; `new_transaction()` provides snapshot validation, compensating rollback, and one-level undo |
 | `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, and shared highlights |
 | `vv-utils.diagnostics` | Diagnostics grouped by path, highest-severity symbols, and formatted diagnostics for line ranges |
 | `vv-utils.lsp.workspace_edit` | Multi-client WorkspaceEdit normalization, deduplication, conflict checks, snapshots, atomic apply, and rollback |

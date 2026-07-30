@@ -103,11 +103,13 @@ function M.resolve(path, opts)
 
       local names = {}
       for _, p in ipairs(list) do names[#names + 1] = p[1] end
-      return nil, ('.' .. ext .. ': 无可用运行器（需其一：' .. table.concat(names, ', ') .. '）')
+      return nil, ('.' .. ext .. ': no available runner (requires one of: '
+        .. table.concat(names, ', ') .. ')')
     end
   end
 
-  return nil, ('未知文件类型：' .. (ext and ('.' .. ext) or vim.fs.basename(abspath)) .. '（无 shebang、无匹配扩展名）')
+  return nil, ('Unknown file type: ' .. (ext and ('.' .. ext) or vim.fs.basename(abspath))
+    .. ' (no shebang and no matching extension)')
 end
 
 return M
