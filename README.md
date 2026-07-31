@@ -73,7 +73,7 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 | `vv-utils.sys` | Cross-platform default-app opening through `vim.ui.open`, with niri focus restoration |
 | `vv-utils.mouse` | Prevent nofile panels from entering Visual mode through mouse drags or multi-clicks, including cross-window drags |
 | `vv-utils.exec` | Resolve commands from shebangs or extension-specific executable runners and return pure `{ cmd, runner }` data |
-| `vv-utils.download` | Async cross-platform downloads via curl, wget, or PowerShell with structured actionable errors |
+| `vv-utils.download` | Async cross-platform downloads via curl, wget, or PowerShell with structured actionable errors; each request owns a same-directory staging file and atomically publishes it to the destination only after success; cancel stops an active process, suppresses its callback, and removes only its staging file, while cancel after result delivery is a no-op |
 | `vv-utils.drop` | Terminal path-drop dispatch through bracketed paste and optional Kitty OSC 72 coordinates and drag events |
 | `vv-utils.bigfile` | Opt-in large-file protection enabled through `setup()` that disables expensive editor features |
 | `vv-utils.format` | Opt-in Chinese/English spacing and trailing-whitespace cleanup commands |

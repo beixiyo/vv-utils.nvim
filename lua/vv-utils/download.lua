@@ -2,6 +2,7 @@
 ---
 ---本模块只负责把 URL 下载到指定路径，不决定资源版本、安装目录或更新策略
 local M = {}
+local download_sequence = 0
 
 local CURL = {
   name = 'curl',
@@ -94,6 +95,7 @@ end
 function M.resolve(uname)
   local system = (uname or vim.uv.os_uname()).sysname
   local candidates = system == 'Windows_NT' and WINDOWS_DOWNLOADERS or UNIX_DOWNLOADERS
+
   for _, candidate in ipairs(candidates) do
     local command = find_command(candidate.commands)
     if command then
@@ -107,37 +109,86 @@ function M.resolve(uname)
   end
 end
 
+local function next_staging_path(destination)
+  download_sequence = download_sequence + 1
+  local token = table.concat({
+    tostring(vim.fn.getpid()),
+    tostring(vim.uv.hrtime()),
+    tostring(download_sequence),
+  }, '-')
+  return vim.fs.joinpath(vim.fs.dirname(destination), '.vv-download-' .. token)
+end
+
 ---异步下载文件
----@param opts { url: string, destination: string, retries?: integer }
+---每个请求写入同目录独占 staging，成功后原子替换 destination；取消只清理 staging
+---@param opts vv-utils.download.Options
 ---@param callback fun(result: vv-utils.download.Result)
+---@return fun() cancel 停止下载并压制尚未投递的 callback，幂等
 function M.file(opts, callback)
+  local state = 'active'
+  local process
+  local staging = next_staging_path(opts.destination)
+  local function cleanup_staging()
+    pcall(vim.uv.fs_unlink, staging)
+  end
+
+  local function cancel()
+    if state ~= 'active' then return end
+    state = 'cancelled'
+    if process then pcall(process.kill, process, 15) end
+    cleanup_staging()
+  end
+
+  local function finish(result)
+    if state ~= 'active' then return end
+    state = 'completed'
+    callback(result)
+  end
+
   local downloader = M.resolve()
   if not downloader then
-    callback({
+    finish({
       ok = false,
       code = 'downloader_not_found',
       message = 'No download tool found. Install curl, wget, or PowerShell and try again',
       attempted = { 'curl', 'wget', 'pwsh', 'powershell.exe' },
     })
-    return
+    return cancel
   end
 
   local retries = opts.retries == nil and 3 or opts.retries
-  local command = downloader.build(downloader.command, opts.url, opts.destination, retries)
+  local command = downloader.build(downloader.command, opts.url, staging, retries)
   local system_opts = {
     text = true,
-    env = downloader.env and downloader.env(opts.url, opts.destination, retries) or nil,
+    env = downloader.env and downloader.env(opts.url, staging, retries) or nil,
   }
 
-  local started, start_error = pcall(vim.system, command, system_opts, function(completed)
+  local started, process_or_error = pcall(vim.system, command, system_opts, function(completed)
     vim.schedule(function()
-      if completed.code == 0 then
-        callback({ ok = true, backend = downloader.name })
+      if state == 'cancelled' then
+        cleanup_staging()
         return
       end
 
+      if completed.code == 0 then
+        local published, publish_error = vim.uv.fs_rename(staging, opts.destination)
+        if not published then
+          cleanup_staging()
+          finish({
+            ok = false,
+            code = 'publish_failed',
+            message = 'Failed to publish download: ' .. tostring(publish_error),
+            backend = downloader.name,
+          })
+          return
+        end
+        finish({ ok = true, backend = downloader.name })
+        return
+      end
+
+      cleanup_staging()
       local detail = completed.stderr ~= '' and completed.stderr or completed.stdout
-      callback({
+      finish({
         ok = false,
         code = 'download_failed',
         message = vim.trim(detail or ('exit code ' .. completed.code)),
@@ -146,19 +197,29 @@ function M.file(opts, callback)
       })
     end)
   end)
+
   if not started then
-    callback({
+    cleanup_staging()
+    finish({
       ok = false,
       code = 'download_failed',
-      message = tostring(start_error),
+      message = tostring(process_or_error),
       backend = downloader.name,
     })
+  else
+    process = process_or_error
   end
+  return cancel
 end
+
+---@class vv-utils.download.Options
+---@field url string 下载地址
+---@field destination string 成功后原子替换的最终路径
+---@field retries? integer 下载器重试次数 @default 3
 
 ---@class vv-utils.download.Result
 ---@field ok boolean 下载是否成功
----@field code? 'downloader_not_found'|'download_failed' 失败类型
+---@field code? 'downloader_not_found'|'download_failed'|'publish_failed' 失败类型
 ---@field message? string 可直接展示给用户的失败原因
 ---@field backend? string 实际使用的下载器
 ---@field attempted? string[] 未找到下载器时检查过的命令

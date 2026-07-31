@@ -72,7 +72,7 @@
 | `vv-utils.sys` | `open_default(path)` 跨平台打开（`vim.ui.open`）；niri 下额外把被打开的应用窗口聚焦回来 |
 | `vv-utils.mouse` | `block_visual_drag(buf)` 给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual；补 buffer-local Nop 拦不住「跨窗口点进面板再拖」的盲区 |
 | `vv-utils.exec` | `resolve(path, opts?)` 按文件类型解析执行命令：shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级，取首个 `executable()` 者，返回 `{cmd, runner}` 纯数据 |
-| `vv-utils.download` | `file(opts, callback)` 跨平台异步下载文件；Unix 优先 `curl` / `wget`，Windows 优先 PowerShell 并显式检查 `curl.exe`，避免混淆 PowerShell 的 `curl` alias；缺少命令时返回可操作的结构化错误 |
+| `vv-utils.download` | `file(opts, callback)` 跨平台异步下载文件；Unix 优先 `curl` / `wget`，Windows 优先 PowerShell 并显式检查 `curl.exe`，避免混淆 PowerShell 的 `curl` alias；每个请求独占同目录 staging，成功后才原子替换 destination；cancel 停止活动进程、压制 callback 且只清理自己的 staging，结果交付后的 cancel 为 no-op |
 | `vv-utils.drop` | 终端拖拽路径检测 + handler 分发（需 `setup()` 启用）。两条路统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste` 从 bracketed paste 检测路径（`pos=nil`，无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47 且脱 tmux）** 带落点坐标 + 拖拽事件（`pos={x,y,op}`）。`register(handler)` 签名 `fun(paths, pos)`；`on_drag(cb)` 订阅移动/离开（实时高亮用）；内置默认 handler（Normal 下 `:edit`）；`setup({ kitty_dnd=false })` 关协议 |
 | `vv-utils.bigfile` | 大文件保护（需 `setup()` 启用），禁用 matchparen / folding / completion 等 |
 | `vv-utils.format` | 中英文排版：`add_spaces_around_english` / `clean_trailing`（命令需 `setup()` 启用） |
