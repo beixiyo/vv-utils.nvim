@@ -127,6 +127,17 @@ test('git: parse_diff_lines 行级 A/C/D', function()
   end
 end)
 
+test('git: highlight_specs 返回不污染静态基准的副本', function()
+  local git = require('vv-utils.git')
+  local first = git.highlight_specs()
+  assert(first.VVGitAdded.fg == '#81b88b', '共享 Added 基准色应可读取')
+  first.VVGitAdded.bold = true
+  first.VVGitAdded.fg = '#000000'
+  local second = git.highlight_specs()
+  assert(second.VVGitAdded.fg == '#81b88b', '调用方修改不能污染后续基准色')
+  assert(second.VVGitAdded.bold == nil, '调用方属性不能残留到后续基准')
+end)
+
 test('git: diff_lines 支持 worktree、staged 与任意 revision source', function()
   local git = require('vv-utils.git')
   local tmp_dir = vim.fn.tempname()

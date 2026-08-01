@@ -14,6 +14,12 @@ local HL_SPECS = {
   VVGitIgnored   = { link = 'Comment' },
 }
 
+---返回共享 Git 高亮的静态基准；调用方可安全合并局部覆盖
+---@return table<string, vim.api.keyset.highlight>
+function M.highlight_specs()
+  return vim.deepcopy(HL_SPECS)
+end
+
 -- 批量注册 VVGit* 高亮组（自带 default=true + ColorScheme 重挂）
 ---@param augroup? string  默认 'vv-utils.git.hl'
 function M.register_hl(augroup)

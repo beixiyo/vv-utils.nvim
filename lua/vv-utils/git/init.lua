@@ -24,5 +24,6 @@ return {
   diff_lines = diff.diff_lines,
 
   register_hl = decorations.register_hl,
+  highlight_specs = decorations.highlight_specs,
   symbol_for = decorations.symbol_for,
 }
