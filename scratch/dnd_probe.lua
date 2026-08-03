@@ -1,7 +1,7 @@
 -- kitty DnD 协议探针（只读，不碰任何文件）
 --
 -- 目的：在「kitty ≥ 0.47 且 nvim 不挂 tmux」环境下，验证 OSC 72 拖拽事件能否
---       进到 nvim、坐标对不对、能否拉到路径。确认后再写正式的 vv-explorer 落点功能。
+--       进到 nvim、坐标对不对、能否拉到路径。确认后再写正式的 vv-explorer 落点功能
 --
 -- 用法（务必在【不开 tmux】的 kitty 里）：
 --   1. kitty 升级到 ≥ 0.47（kitty --version 确认）

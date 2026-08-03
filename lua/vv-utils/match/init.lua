@@ -5,20 +5,20 @@
 --   subseq  子序列模糊（query 每个字符按序出现在干草堆，不要求连续；不打分）
 --   regex   vim 正则（vim.regex:match_str）
 --
--- 关键：compile(query) 编译一次 → 返回谓词，再对每条候选调用。
+-- 关键：compile(query) 编译一次 → 返回谓词，再对每条候选调用
 -- 避免 regex 逐条重编译（大列表下是 O(n) 次编译）。vv-explorer 的 match_regex
--- 正是「编译一次 + 循环 match_str」，这里把同一内核抽成可复用工厂。
+-- 正是「编译一次 + 循环 match_str」，这里把同一内核抽成可复用工厂
 --
 -- 与打分 fuzzy（vim.fn.matchfuzzypos）的区别：这里只判「命中 / 不命中」，
--- 不打分、不重排——适合需要保持原有分组 / 顺序的列表（如 vv-flow 的编号流程）。
+-- 不打分、不重排——适合需要保持原有分组 / 顺序的列表（如 vv-flow 的编号流程）
 
 local M = {}
 
--- compile 支持的模式集；恰好也是 vv-flow 过滤模式集。
--- 注意：这不是「所有插件的」模式集——用 glob / 打分 fuzzy 的插件不走本模块。
+-- compile 支持的模式集；恰好也是 vv-flow 过滤模式集
+-- 注意：这不是「所有插件的」模式集——用 glob / 打分 fuzzy 的插件不走本模块
 M.MODES = { 'fixed', 'subseq', 'regex' }
 
--- 列表中 cur 的下一个，循环；cur 不在列表则返回首个。用于模式轮换。
+-- 列表中 cur 的下一个，循环；cur 不在列表则返回首个。用于模式轮换
 ---@param list any[]
 ---@param cur any
 ---@return any
@@ -49,7 +49,7 @@ local function subseq_match(hay, q)
   return true
 end
 
--- 编译查询为命中判定谓词。
+-- 编译查询为命中判定谓词
 --   空查询 → 谓词恒 true（不过滤）
 --   regex 非法 → 谓词恒 false，且第二返回值 ok=false（调用方可据此提示），不抛错
 ---@param query string

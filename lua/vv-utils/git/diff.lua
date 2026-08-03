@@ -3,15 +3,16 @@
 local M = {}
 
 local repository = require('vv-utils.git.repository')
+local Process = require('vv-utils.git.process')
 
 local function norm(path) return vim.fs.normalize(path) end
 
--- unified diff hunk header -> 行级标记。
+-- unified diff hunk header -> 行级标记
 -- 默认投影 new 侧，规则与 vv-statuscol 当前 git 槽一致：
 --   old=0, new>0  -> 纯新增：new_start..new_start+new_len-1 标 A
 --   new=0, old>0  -> 纯删除：在 max(new_start, 1) 标 D
 --   old>0, new>0  -> 修改：重叠行标 C，额外新增行标 A，额外删除合并到最后一个 C
--- old 侧用于显示 HEAD 等基准内容：纯删除覆盖原始行，修改按 old 行号投影。
+-- old 侧用于显示 HEAD 等基准内容：纯删除覆盖原始行，修改按 old 行号投影
 ---@param diff string
 ---@param side? 'new'|'old'  投影到 diff 哪一侧 @default 'new'
 ---@return table<integer, 'A'|'C'|'D'>
@@ -133,17 +134,32 @@ end
 ---@param path string
 ---@param cb fun(sets: vv-utils.git.DiffLineSets?)
 ---@param opts? { root?: string }
+---@return fun() cancel 幂等取消函数
 function M.diff_line_sets(path, cb, opts)
   opts = opts or {}
-  if not path or path == '' then cb(nil); return end
+  if not path or path == '' then cb(nil); return function() end end
+
+  local cancelled = false
+  local producer_cancels = {}
+  local root_cancel
+
+  local function cancel()
+    if cancelled then return end
+    cancelled = true
+    if root_cancel then root_cancel() end
+    for _, cancel_producer in ipairs(producer_cancels) do cancel_producer() end
+    producer_cancels = {}
+  end
 
   local function run(root)
+    if cancelled then return end
     if not root then cb(nil); return end
 
     local results = {}
     local pending = 2
     local failed = false
     local function finish(mode, result)
+      if cancelled then return end
       if result.code ~= 0 then failed = true end
       results[mode] = result.stdout or ''
       pending = pending - 1
@@ -159,34 +175,68 @@ function M.diff_line_sets(path, cb, opts)
 
     local base = { 'git', '-C', root, '--no-pager', 'diff' }
     local tail = { '-U0', '--no-color', '--no-ext-diff', '--', path }
-    vim.system(vim.list_extend(vim.deepcopy(base), tail), { text = true },
-      vim.schedule_wrap(function(result) finish('unstaged', result) end))
-    local staged_cmd = vim.list_extend(vim.deepcopy(base), { '--cached' })
-    vim.list_extend(staged_cmd, tail)
-    vim.system(staged_cmd, { text = true },
-      vim.schedule_wrap(function(result) finish('staged', result) end))
+    local ok = xpcall(function()
+      local cancel_unstaged, unstaged_error = Process.start(
+        vim.list_extend(vim.deepcopy(base), tail),
+        { text = true },
+        function(result) finish('unstaged', result) end
+      )
+      producer_cancels[#producer_cancels + 1] = cancel_unstaged
+      if unstaged_error then error(unstaged_error) end
+      local staged_cmd = vim.list_extend(vim.deepcopy(base), { '--cached' })
+      vim.list_extend(staged_cmd, tail)
+      local cancel_staged, staged_error = Process.start(
+        staged_cmd,
+        { text = true },
+        function(result) finish('staged', result) end
+      )
+      producer_cancels[#producer_cancels + 1] = cancel_staged
+      if staged_error then error(staged_error) end
+    end, debug.traceback)
+    if not ok then
+      for _, cancel_producer in ipairs(producer_cancels) do cancel_producer() end
+      producer_cancels = {}
+      vim.schedule(function()
+        if not cancelled then cb(nil) end
+      end)
+    end
   end
 
-  if opts.root then run(norm(opts.root)); return end
-  if vim.fn.filereadable(path) == 0 then cb(nil); return end
+  if opts.root then run(norm(opts.root)); return cancel end
+  if vim.fn.filereadable(path) == 0 then cb(nil); return cancel end
 
   path = norm(path)
-  repository.root_async(vim.fs.dirname(path), run)
+  root_cancel = repository.root_async(vim.fs.dirname(path), run)
+  if cancelled and root_cancel then root_cancel() end
+  return cancel
 end
 
 ---异步获取文件的行级 git diff 标记
 ---@param path string
 ---@param cb fun(markers: table<integer, 'A'|'C'|'D'>?)
 ---@param opts? vv-utils.git.DiffLinesOpts
+---@return fun() cancel 幂等取消函数
 function M.diff_lines(path, cb, opts)
   opts = opts or {}
   if not path or path == '' then
     cb(nil)
-    return
+    return function() end
+  end
+
+  local cancelled = false
+  local cancel_process
+  local root_cancel
+
+  local function cancel()
+    if cancelled then return end
+    cancelled = true
+    if root_cancel then root_cancel() end
+    if cancel_process then cancel_process() end
   end
 
   local mode = opts.mode or 'worktree'
   local function run(root)
+    if cancelled then return end
     if not root then cb(nil); return end
 
     local cmd = { 'git', '-C', root, '--no-pager', 'diff' }
@@ -198,28 +248,31 @@ function M.diff_lines(path, cb, opts)
     end
     vim.list_extend(cmd, { '-U0', '--no-color', '--no-ext-diff', '--', path })
 
-    vim.system(cmd, { text = true }, vim.schedule_wrap(function(res)
+    cancel_process = Process.start(cmd, { text = true }, function(res)
       if res.code ~= 0 then
         cb(nil)
         return
       end
 
       cb(M.parse_diff_lines(res.stdout or '', opts.side))
-    end))
+    end)
+    if cancelled then cancel_process() end
   end
 
   if opts.root then
     run(norm(opts.root))
-    return
+    return cancel
   end
 
   if vim.fn.filereadable(path) == 0 then
     cb(nil)
-    return
+    return cancel
   end
 
   path = norm(path)
-  repository.root_async(vim.fs.dirname(path), run)
+  root_cancel = repository.root_async(vim.fs.dirname(path), run)
+  if cancelled and root_cancel then root_cancel() end
+  return cancel
 end
 
 ---@class vv-utils.git.DiffLinesOpts

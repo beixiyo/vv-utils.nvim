@@ -2,7 +2,7 @@
 --
 -- 只负责 label / placeholder 的 extmark 渲染，不持有字段状态，也不管理
 -- buffer、window、焦点或输入生命周期。调用方传入上次返回的 extmark id，
--- 即可原位更新同一个字段。
+-- 即可原位更新同一个字段
 
 local M = {}
 

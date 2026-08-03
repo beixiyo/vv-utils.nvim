@@ -1,8 +1,17 @@
 -- Git 状态索引：解析 porcelain 输出并异步读取 tracked、ignored 与工作树状态
 
 local M = {}
+local Process = require('vv-utils.git.process')
 
 local function norm(path) return vim.fs.normalize(path) end
+
+---@param command string[]
+---@param opts table
+---@param callback fun(result: vim.SystemCompleted)
+---@return fun() cancel
+local function system(command, opts, callback)
+  return Process.start(command, opts, callback)
+end
 
 -- porcelain v1 -z 格式：`XY path\0`（rename/copy 额外跟一个旧路径 `old\0`）
 -- 目录级 ignored 以 '/' 结尾，单独进 ignored_dirs
@@ -118,25 +127,26 @@ end
 ---@param root string
 ---@param cb fun(t: vv-utils.git.Tracked?)
 ---@param opts? vv-utils.git.TrackedOpts
+---@return fun() cancel 幂等取消函数
 function M.tracked(root, cb, opts)
-  if not root or root == '' then cb(nil); return end
+  if not root or root == '' then cb(nil); return function() end end
   root = norm(root)
   local cmd = { 'git', '-C', root, 'ls-files', '-z' }
   if opts and opts.scope then
     table.insert(cmd, '--')
     table.insert(cmd, '.')
   end
-  vim.system(
+  return system(
     cmd,
     { text = false },
-    vim.schedule_wrap(function(st)
+    function(st)
       if st.code ~= 0 then cb(nil); return end
       local set = build_tracked_set(st.stdout, root)
       cb({
         tracked_set = set,
         is_tracked = function(path) return set[path] == true end,
       })
-    end)
+    end
   )
 end
 
@@ -145,14 +155,15 @@ end
 ---@field ignored? boolean 是否查询 ignored 路径 @default true
 ---@field scope? boolean 是否仅查询 root 当前路径范围 @default false
 
--- 异步索引整个仓库。
--- 非 git 仓库 / git 失败 → cb(nil)；成功 → cb(index)。
--- 回调通过 vim.schedule_wrap 已回到主线程。
+-- 异步索引整个仓库
+-- 非 git 仓库 / git 失败 → cb(nil)；成功 → cb(index)
+-- 回调通过 vim.schedule_wrap 已回到主线程
 ---@param root string
 ---@param cb fun(index: vv-utils.git.Index?)
 ---@param opts? vv-utils.git.IndexOpts
+---@return fun() cancel 幂等取消函数
 function M.index(root, cb, opts)
-  if not root or root == '' then cb(nil); return end
+  if not root or root == '' then cb(nil); return function() end end
   root = norm(root)
   local args = { 'git', '-C', root, 'status', '--porcelain=v1', '-z' }
   if not (opts and opts.ignored == false) then
@@ -166,7 +177,7 @@ function M.index(root, cb, opts)
     table.insert(args, '--')
     table.insert(args, '.')
   end
-  vim.system(args, { text = false }, vim.schedule_wrap(function(st)
+  return system(args, { text = false }, function(st)
     if st.code ~= 0 then cb(nil); return end
     local status_map, ifiles, idirs, rename_map = M.parse_porcelain_z(st.stdout, root)
     cb({
@@ -176,7 +187,7 @@ function M.index(root, cb, opts)
       is_ignored = M.make_is_ignored(ifiles, idirs),
       rename_map = rename_map,
     })
-  end))
+  end)
 end
 
 -- 列出所有 untracked + ignored 的路径。走 `git ls-files --others --ignored --directory`：
@@ -184,19 +195,20 @@ end
 --   * `--ignored --exclude-standard`：只列被 .gitignore 命中的
 --   * `--directory`：ignored 目录作为整体报告，**不递归进去**
 --     （这是 `git status --ignored` 慢的根因——它递归进 Downloads/Library 等巨目录）
--- 语义完全等价于 `git status --ignored` 里的 `!!` 条目，但快几个数量级。
+-- 语义完全等价于 `git status --ignored` 里的 `!!` 条目，但快几个数量级
 ---@param root string  CWD for git（-C 参数）
 ---@param cb fun(ignored_files: table<string,boolean>, ignored_dirs: table<string,boolean>)
 ---@param opts? { scope?: boolean }
+---@return fun() cancel 幂等取消函数
 function M.ignored_entries(root, cb, opts)
-  if not root or root == '' then cb({}, {}); return end
+  if not root or root == '' then cb({}, {}); return function() end end
   root = norm(root)
   local cmd = { 'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z' }
   if opts and opts.scope then
     table.insert(cmd, '--')
     table.insert(cmd, '.')
   end
-  vim.system(cmd, { text = false }, vim.schedule_wrap(function(st)
+  return system(cmd, { text = false }, function(st)
     local ifiles, idirs = {}, {}
     if st.code ~= 0 then cb(ifiles, idirs); return end
     if not st.stdout or #st.stdout == 0 then cb(ifiles, idirs); return end
@@ -209,7 +221,7 @@ function M.ignored_entries(root, cb, opts)
       end
     end
     cb(ifiles, idirs)
-  end))
+  end)
 end
 
 return M

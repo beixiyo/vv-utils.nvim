@@ -28,8 +28,6 @@ The core library has no Lua dependencies. Individual modules use external progra
 
 ## Installation
 
-Manual installation is usually unnecessary because other `vv-*` plugins pull it in through `dependencies`. To consume it directly:
-
 ```lua
 {
   'beixiyo/vv-utils.nvim',
@@ -38,159 +36,23 @@ Manual installation is usually unnecessary because other `vv-*` plugins pull it 
 }
 ```
 
-## Modules
-
-| Module | Description |
-|---|---|
-| `vv-utils.path` | Path normalization, middle-segment collapsing, Git-first project-root discovery, and current-directory lookup |
-| `vv-utils.glob` | VS Code-style search glob splitting into framework-neutral root-anchored or any-depth patterns, plus a ripgrep adapter |
-| `vv-utils.path_completion` | UI-agnostic path candidates for glob and directory inputs from either cancellable `fd` lookup or a caller-owned relative-path index |
-| `vv-utils.completion` | Buffer-local completion descriptors for declaring candidate strategy and lifecycle |
-| `vv-utils.blink` | Optional Blink adapter for active completion descriptors; defaults to 50 final candidates and a 1000-entry scan budget |
-| `vv-utils.yaml` | Lightweight YAML parsing for simple files such as `pnpm-workspace.yaml` |
-| `vv-utils.fs` | Filesystem primitives; `inspect_file()` / `is_binary()` content-based file classification plus English `file_info_lines()` / `highlight_file_info()` metadata presentation; `new_transaction()` provides snapshot validation, compensating rollback, and one-level undo |
-| `vv-utils.git` | Async Git indexing, single-side line diffs, mapped staged/unstaged line sets, symbols, shared highlight registration, and a copy-safe `highlight_specs()` baseline |
-| `vv-utils.diagnostics` | Diagnostics grouped by path, highest-severity symbols, and formatted diagnostics for line ranges |
-| `vv-utils.lsp.workspace_edit` | Multi-client WorkspaceEdit normalization, deduplication, conflict checks, snapshots, atomic apply, and rollback |
-| `vv-utils.lsp.code_actions` | Collect safe document-fix transactions or apply editable fixes to a document or line range |
-| `vv-utils.lsp.fix` | Apply converged multi-LSP fixes atomically to one file or multiple paths |
-| `vv-utils.lsp.file_operations` | Collect `workspace/willRenameFiles` edits and send `workspace/didRenameFiles`; it does not move files |
-| `vv-utils.history` | Per-field input history with draft restoration, deduplication, bounded entries, and optional 0600 atomic persistence |
-| `vv-utils.state` | Namespaced JSON state shared by plugins through `register(plugin_id, key_id)`, with merge-before-write and 0600 atomic persistence |
-| `vv-utils.timer` | Debounce and throttle helpers with fixed or dynamically calculated delays |
-| `vv-utils.color` | Color parsing and conversion for integer RGB, `#RGB[A]`, `#RRGGBB[AA]`, and RGBA objects, plus interpolation and alpha compositing |
-| `vv-utils.hl` | Highlight registration, dimmed derivatives, ColorScheme refresh, and `get_fg` lookup |
-| `vv-utils.ui_window` | Hide and restore UI-buffer window chrome such as line numbers and sign columns |
-| `vv-utils.help_panel` | Shared keymap help panel generated from buffer mappings grouped by description prefixes |
-| `vv-utils.keymap` | Declaratively claim buffer-local mappings while active, then restore the previous mapping when filetype or custom conditions no longer match |
-| `vv-utils.tree_panel` | Reusable Trouble-style tree sidebar with stable folds, custom render regions, file preview, and jumps |
-| `vv-utils.bufdelete` | Layout-safe buffer deletion through `delete`, `all`, `other`, and `smart` |
-| `vv-utils.loading` | Inline loading animation plus a render-free frame ticker and braille, dots, and bounce presets |
-| `vv-utils.input` | Stateless label and placeholder rendering for controlled input rows, with overlay or virtual-line layouts |
-| `vv-utils.prompt` | Bottom-anchored two-line filtering prompt with modes, debounce, spinner, navigation, and split-open callbacks |
-| `vv-utils.match` | Compile fixed, subsequence, or Vim-regex predicates without scoring or reordering the source list |
-| `vv-utils.editor` | Text copy, Visual range, and path-copy helpers |
-| `vv-utils.sys` | Cross-platform default-app opening through `vim.ui.open`, with niri focus restoration |
-| `vv-utils.mouse` | Prevent nofile panels from entering Visual mode through mouse drags or multi-clicks, including cross-window drags |
-| `vv-utils.exec` | Resolve commands from shebangs or extension-specific executable runners and return pure `{ cmd, runner }` data |
-| `vv-utils.download` | Async cross-platform downloads via curl, wget, or PowerShell with structured actionable errors; each request owns a same-directory staging file and atomically publishes it to the destination only after success; cancel stops an active process, suppresses its callback, and removes only its staging file, while cancel after result delivery is a no-op |
-| `vv-utils.drop` | Terminal path-drop dispatch through bracketed paste and optional Kitty OSC 72 coordinates and drag events |
-| `vv-utils.bigfile` | Opt-in large-file protection enabled through `setup()` that disables expensive editor features |
-| `vv-utils.format` | Opt-in Chinese/English spacing and trailing-whitespace cleanup commands |
-| `vv-utils.animate` | Timer-driven interpolation with linear, quadratic, and cubic easing functions |
-| `vv-utils.scroll` | Cross-window smooth scrolling, view animations, auto-animation suppression, and native or smooth mouse behavior |
-
-Important details:
-
-- `git.index(root, cb)` returns status and ignored-path maps, `is_ignored`, and `rename_map`; symbols remain module-level helpers
-- `git.diff_lines(path, cb, opts?)` returns one side of a line diff; `opts.from_rev` / `opts.to_rev` select an arbitrary revision range and `opts.side` projects markers onto its old or new side
-- `git.diff_line_sets(path, cb)` returns staged and unstaged sets with staged coordinates mapped to the worktree
-- `loading.ticker({ on_frame })` only schedules frames and invokes the callback; it does not render them
-- `input.render(opts)` decorates caller-owned buffer rows and returns reusable extmark IDs; it does not own windows, focus, values, or input lifecycle
-- `keymap.attach(opts)` returns a handle with `refresh(buf?)` and `detach()`; it only restores a mapping when it is still the owner, so a later user or plugin rebind wins
-- `prompt.open(anchor_win, opts)` returns a handle with `close`, `redraw`, `set_busy`, and `set_status`
-- `match.compile(query, { mode, ignore_case })` compiles once and returns a reusable predicate plus validity status
-- `history.new({ name, max_entries?, persist?, path? })` creates an isolated instance; persistent writes merge the latest on-disk records before atomic replacement but do not provide inter-process locking
-- `state.register(plugin_id, key_id)` returns a field handle backed by `stdpath('state')/vv-utils/state.json`; each write reloads and merges the latest disk snapshot but does not provide inter-process locking
-- `drop.register(handler)` receives `fun(paths, pos)`, while `drop.on_drag(cb)` subscribes to movement and leave events
-- Kitty DnD requires Kitty 0.47 or newer and does not operate through tmux
-
-### Color utilities
-
-```lua
-local color = require('vv-utils.color')
-
-local rgba = color.parse('#0f08')
--- { r = 0, g = 255, b = 0, a = 136 }
-
-color.to_hex(rgba)                              -- '#00ff0088'
-color.to_integer('#00ff00')                    -- 0x00ff00
-color.mix('#ff0000', '#0000ff', 0.5)           -- RGBA object
-color.composite('#ff000080', '#0000ff')        -- source-over RGBA object
-```
-
-`parse()` accepts `0xRRGGBB`, `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, or
-`{ r, g, b, a? }`. `to_hex()` uses lowercase and includes alpha automatically when it is not
-opaque; set `alpha = 'always'` or `'never'` to override it. `to_integer()` rejects translucent
-colors unless `background` is provided for compositing or `discard_alpha = true` is explicit.
-`mix()` interpolates all four RGBA channels; `composite()` performs standard source-over alpha
-compositing.
-
-## Imports
-
-```lua
-local path = require('vv-utils.path')
-path.get_root()
-path.find_root('/work/repository/apps/web/src/App.tsx') -- Git root first, then nearest manifest
-path.collapse_middle('frontend/electron/renderer/App.tsx', { head = 1, tail = 2 })
-
-local glob = require('vv-utils.glob')
-glob.compile_rg_list('*.{ts,tsx}, ./packages/core/src/')
-glob.compile_list('core/src, !./vendor') -- generic patterns plus negation
-
-local utils = require('vv-utils')
-utils.path.get_root()
-utils.yaml.parse(...)
-
-local history = require('vv-utils.history').new({
-  name = 'my-plugin',
-  max_entries = 50,
-  persist = true,
-})
-history:record('search', 'needle')
-history:previous('search', 'current draft')
-history:next('search', 'needle')
-
-local references_state = require('vv-utils.state').register('my-plugin', 'references')
-local TreePanel = require('vv-utils.tree_panel')
-local panel = TreePanel.new({
-  id = 'references',
-  width = 52,
-  state = references_state, -- Stores the actual width in the handle's `width` field
-  on_attach = function(current, buf)
-    TreePanel.apply_default_mappings(current, { q = false, x = 'close_panel' })
-  end,
-  source = function() return nodes end,
-  render = {
-    header = function() return { text = 'References', hl = 'Title' } end,
-    node = function(ctx) return { text = ctx.node.label } end,
-  },
-})
-panel:toggle()
-```
-
-`tree_panel` registers no keymaps itself. `on_attach(panel, buf)` gives the caller complete
-control over modes, descriptions, and keymap options. The optional
-`apply_default_mappings(panel, overrides, opts)` helper installs common tree controls;
-`apply_mappings` installs an explicit action/callback table. The common mappings use
-`j` / `k` / `C-n` / `C-p` for preview navigation, `h` / `l` for tree navigation,
-`Enter` to open while retaining the panel, `gf` to open and close, and `g?` for help.
-
-Rendering is caller-owned: `render.header`, `render.node`, `render.empty`, and
-`render.footer` may each return plain text or highlighted chunks. `render.winbar`
-uses the same return shape but stays fixed at the top of the window while tree rows
-scroll; set it to `false` to clear it. `syntax_chunks(text,
-lang, fallback_hl)` converts an independent source snippet into Tree-sitter chunks
-without changing a source buffer or global editor state.
-
 ## Configuration
-
-Most modules are pure-function libraries and need no setup. Modules with side effects must be enabled explicitly:
 
 ```lua
 require('vv-utils').setup({
-  drop = true,          -- Paste detection and Kitty DnD coordinates; overrides vim.paste
-  bigfile = true,       -- Enable large-file protection
-  format = true,        -- Enable :VVAddSpaces and :VVCleanTrailing
-  scroll = {
-    duration = 180,     -- General animation cap in milliseconds
-    key_duration = 120, -- <C-e>/<C-y> animation cap
-    auto_duration = 108,-- gg/G/search jump animation cap
-    auto_max_steps = 10,-- Also bounded by auto_duration/frame_ms
-    frame_ms = 12,      -- Shorten short-distance animation by frame interval
-    mouse = 'native',   -- Set to 'smooth' to intercept mouse scrolling
-  },
-  -- Tables are forwarded to their modules:
-  -- bigfile = { size = 1024 * 500 },
+  drop = true,
+  bigfile = { size = 512 * 1024 },
+  format = true,
+  scroll = true,
 })
 ```
+
+## Modules
+
+| Category | Modules |
+|---|---|
+| Foundation | [`path`](lua/vv-utils/path/README.md), [`glob`](lua/vv-utils/glob/README.md), [`yaml`](lua/vv-utils/yaml/README.md), [`timer`](lua/vv-utils/timer/README.md), [`color`](lua/vv-utils/color/README.md), [`hl`](lua/vv-utils/hl/README.md), [`animate`](lua/vv-utils/animate/README.md) |
+| Async and completion | [`async`](lua/vv-utils/async/README.md), [`completion`](lua/vv-utils/completion/README.md), [`blink`](lua/vv-utils/blink/README.md), [`path_completion`](lua/vv-utils/path_completion/README.md), [`match`](lua/vv-utils/match/README.md) |
+| Editor UI | [`tree_panel`](lua/vv-utils/tree_panel/README.md), [`prompt`](lua/vv-utils/prompt/README.md), [`input`](lua/vv-utils/input/README.md), [`loading`](lua/vv-utils/loading/README.md), [`ui_window`](lua/vv-utils/ui_window/README.md), [`help_panel`](lua/vv-utils/help_panel/README.md), [`keymap`](lua/vv-utils/keymap/README.md), [`mouse`](lua/vv-utils/mouse/README.md), [`scroll`](lua/vv-utils/scroll/README.md) |
+| Files and state | [`fs`](lua/vv-utils/fs/README.md), [`git`](lua/vv-utils/git/README.md), [`lsp`](lua/vv-utils/lsp/README.md), [`history`](lua/vv-utils/history/README.md), [`state`](lua/vv-utils/state/README.md), [`diagnostics`](lua/vv-utils/diagnostics/README.md), [`bufdelete`](lua/vv-utils/bufdelete/README.md), [`editor`](lua/vv-utils/editor/README.md) |
+| System and side effects | [`drop`](lua/vv-utils/drop/README.md), [`download`](lua/vv-utils/download/README.md), [`exec`](lua/vv-utils/exec/README.md), [`sys`](lua/vv-utils/sys/README.md), [`bigfile`](lua/vv-utils/bigfile/README.md), [`format`](lua/vv-utils/format/README.md) |

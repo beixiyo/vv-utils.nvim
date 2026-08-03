@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3 - 2026-08-03
+
+### Added
+
+- **async**：新增 `Scope` 请求生命周期管理。支持按 key 的 `latest` / `parallel` 并发模式、过期结果授权校验、owner 级 invalidate / cancel / dispose，以及 cancel 与 disposer 的一次性资源释放
+
+### Changed
+
+- **文档**：模块用法与 API 说明移动到各模块目录的 `README.md`
+
 ## 0.5.2 - 2026-08-01
 
 ### Added

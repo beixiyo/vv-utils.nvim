@@ -1,12 +1,13 @@
 -- Git 仓库探测：识别工作目录类型并同步/异步查找仓库根
 
 local M = {}
+local Process = require('vv-utils.git.process')
 
 local uv = vim.uv or vim.loop
 
---- 探测某目录的 `.git` 属于哪类 git 工作目录（纯读文件，不起 git 进程，可用于热路径/递归扫描）。
+--- 探测某目录的 `.git` 属于哪类 git 工作目录（纯读文件，不起 git 进程，可用于热路径/递归扫描）
 --- 普通 / 主仓库的 `.git` 是**目录**；linked worktree 与 submodule 的 `.git` 都是**文件**
---- （内容 `gitdir: <path>`），据 gitdir 路径里的 `/worktrees/` vs `/modules/` 区分二者。
+--- （内容 `gitdir: <path>`），据 gitdir 路径里的 `/worktrees/` vs `/modules/` 区分二者
 ---@param dir string  目录路径（绝对或相对）
 ---@return 'repo'|'worktree'|'submodule'|'linked'|nil kind
 ---   'repo'      → `.git` 是目录（普通仓库 / 主 worktree）
@@ -41,7 +42,7 @@ function M.is_linked_worktree(dir)
   return M.git_dir_kind(dir) == 'worktree'
 end
 
---- 探测 cwd 所在 git 仓库根（rev-parse --show-toplevel）。同步版（会阻塞，勿用于热路径）。
+--- 探测 cwd 所在 git 仓库根（rev-parse --show-toplevel）。同步版（会阻塞，勿用于热路径）
 ---@param cwd? string  默认 vim.fn.getcwd()
 ---@return string? root  规范化绝对路径；非 git 仓库 / 出错返回 nil
 function M.root(cwd)
@@ -54,17 +55,18 @@ end
 --- 异步版：不阻塞主循环，结果经 cb 回传。用于热路径（statuscolumn 等）
 ---@param cwd string
 ---@param cb fun(root: string?)  非 git 仓库 / 出错回传 nil
+---@return fun() cancel 幂等取消函数
 function M.root_async(cwd, cb)
-  vim.system(
+  return Process.start(
     { 'git', '-C', cwd, 'rev-parse', '--show-toplevel' },
     { text = true },
-    vim.schedule_wrap(function(res)
+    function(res)
       if res.code ~= 0 or not res.stdout or res.stdout == '' then
         cb(nil)
       else
         cb(vim.fs.normalize(vim.trim(res.stdout)))
       end
-    end)
+    end
   )
 end
 

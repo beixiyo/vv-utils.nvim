@@ -13,6 +13,7 @@
 --   lsp         LSP Code Action、WorkspaceEdit 与文件操作协议原语
 --   history     按字段隔离的输入历史（草稿恢复 + 可选 0600 原子持久化）
 --   state       按插件与功能 ID 隔离的通用 JSON 持久状态
+--   async       与业务无关的异步 request scope（逻辑失效 + 调用方资源清理协调）
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   mouse       nofile 面板鼠标防护（block_visual_drag：禁拖拽/多击含跨窗口拖入进 visual）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）

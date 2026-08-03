@@ -1,15 +1,15 @@
 -- 终端拖拽路径检测 + handler 分发
 --
 -- 两条进入路径，统一走路径 handler 分发：
---   1. bracketed paste（覆写 vim.paste）：拖入的文件以「粘贴文本」形式到达，无坐标。
---      pos = nil。tmux / 不支持 DnD 协议的终端走这条。
---   2. kitty DnD 协议（OSC 72，kitty ≥ 0.47）：拖入带落点 cell 坐标 + 拖拽移动事件流。
+--   1. bracketed paste（覆写 vim.paste）：拖入的文件以「粘贴文本」形式到达，无坐标
+--      pos = nil。tmux / 不支持 DnD 协议的终端走这条
+--   2. kitty DnD 协议（OSC 72，kitty ≥ 0.47）：拖入带落点 cell 坐标 + 拖拽移动事件流
 --      pos = { x, y, op }（屏幕 cell，原点左上）。需 nvim 直接跑在 kitty 下（不挂 tmux，
---      tmux 不透传入站 OSC）。启动时探测，支持才 opt-in；不支持自动回退路径 1。
+--      tmux 不透传入站 OSC）。启动时探测，支持才 opt-in；不支持自动回退路径 1
 --
 -- handler 签名 fun(paths, pos) → 返回 true 表示已消费。pos 为 nil 时是无坐标的粘贴落点，
--- 由 handler 自行决定（如复制到光标目录）；pos 非 nil 时按落点坐标处理。
--- on_drag(cb) 订阅拖拽移动 / 离开事件，用于实时高亮落点（仅 DnD 协议下触发）。
+-- 由 handler 自行决定（如复制到光标目录）；pos 非 nil 时按落点坐标处理
+-- on_drag(cb) 订阅拖拽移动 / 离开事件，用于实时高亮落点（仅 DnD 协议下触发）
 
 local dispatcher = require('vv-utils.drop.dispatcher')
 local kitty = require('vv-utils.drop.kitty')

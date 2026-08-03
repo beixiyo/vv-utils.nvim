@@ -1,4 +1,4 @@
--- 按 buffer 条件接管映射，并在条件失效或插件关闭时归还。
+-- 按 buffer 条件接管映射，并在条件失效或插件关闭时归还
 
 require('vv-utils.keymap.types')
 

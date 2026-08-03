@@ -26,7 +26,7 @@ local function parse_meta(meta)
 end
 
 -- kitty 发的 base64 省略了尾部 '=' 填充，而 vim.base64.decode 严格要求填充长度为 4 的倍数，
--- 不补会对「长度非 4 倍数」的 payload（文件夹 / 多文件 / 多数路径）直接解码失败。按余数补 '='。
+-- 不补会对「长度非 4 倍数」的 payload（文件夹 / 多文件 / 多数路径）直接解码失败。按余数补 '='
 local function b64_decode(value)
   local remainder = #value % 4
   if remainder == 2 then value = value .. '=='
@@ -34,10 +34,10 @@ local function b64_decode(value)
   return vim.base64.decode(value)
 end
 
--- text/uri-list（base64 解码后）→ 本地绝对路径列表。
+-- text/uri-list（base64 解码后）→ 本地绝对路径列表
 -- file:// URI 已百分号编码（无字面空白），故按空白切分可同时兼容 RFC 的 CRLF 分隔与空格分隔；
 -- '#' 注释行 / 非绝对路径自然被跳过。每个路径 normalize 去尾斜杠——kitty 规定目录 URI 必带 '/'，
--- 不去掉会让 vim.fs.basename 取空、目标名算错（文件夹复制错位的根因）。
+-- 不去掉会让 vim.fs.basename 取空、目标名算错（文件夹复制错位的根因）
 local function uri_list_to_paths(text)
   local paths = {}
   for uri in text:gmatch('%S+') do
@@ -89,11 +89,8 @@ local function on_osc72(sequence, dispatch, fire_drag)
   elseif event_type == 'M' then
     fire_drag({ kind = 'leave' }) -- 落点确定，先清高亮
     pending = {
----@diagnostic disable-next-line: assign-type-mismatch
       x = tonumber(key_values.x),
----@diagnostic disable-next-line: assign-type-mismatch
       y = tonumber(key_values.y),
----@diagnostic disable-next-line: assign-type-mismatch
       op = tonumber(key_values.o),
       chunks = {},
     }

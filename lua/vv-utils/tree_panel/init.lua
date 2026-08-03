@@ -62,7 +62,7 @@ function M.apply_mappings(panel, mappings, opts)
   Keymaps.apply(panel, mappings, opts)
 end
 
---- 将独立源码转换为 Tree-sitter 高亮 chunks；解析失败时自动退回 fallback 高亮。
+--- 将独立源码转换为 Tree-sitter 高亮 chunks；解析失败时自动退回 fallback 高亮
 ---@param text string
 ---@param lang string?
 ---@param fallback_hl? string

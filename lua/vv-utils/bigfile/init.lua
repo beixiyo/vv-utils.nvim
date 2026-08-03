@@ -48,8 +48,8 @@ local defaults = {
 -- setup 时解析出的阈值，供 M.is_big 在 setup 之后复用同一套配置
 local resolved = defaults
 
--- 判定 buffer 是否「大文件」：字节数超 size，或平均行长超 line_length（识别 minified）。
--- 供其它模块（vv-log-hl 等）在真正动手前自我设限，复用同一套阈值，免得各写一份。
+-- 判定 buffer 是否「大文件」：字节数超 size，或平均行长超 line_length（识别 minified）
+-- 供其它模块（vv-log-hl 等）在真正动手前自我设限，复用同一套阈值，免得各写一份
 ---@param buf integer
 ---@param opts? vv-utils.bigfile.Opts  覆盖阈值；缺省用 setup 时的配置
 ---@return boolean
@@ -62,8 +62,8 @@ function M.is_big(buf, opts)
   local lines = vim.api.nvim_buf_line_count(buf)
   if lines <= 0 then return false end
   -- 优先看 buffer 实际字节数：覆盖 scratch buf（无 buffer name、磁盘上无对应文件，
-  -- 如 vv-git 把 `git show` 内容塞进内存 buffer 的场景）。
-  -- nvim_buf_get_offset(buf, lines) = 末行末尾的字节偏移 ≈ buffer 总字节数。
+  -- 如 vv-git 把 `git show` 内容塞进内存 buffer 的场景）
+  -- nvim_buf_get_offset(buf, lines) = 末行末尾的字节偏移 ≈ buffer 总字节数
   local ok, size = pcall(vim.api.nvim_buf_get_offset, buf, lines)
   if not ok or not size or size <= 0 then
     -- fallback 到磁盘大小：buffer 内容尚未 load 时（BufNewFile 等）

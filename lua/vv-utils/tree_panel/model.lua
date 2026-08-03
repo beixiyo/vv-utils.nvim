@@ -63,7 +63,7 @@ function M.find(nodes, id)
   end
 end
 
---- 在可导航行之间循环移动。当前行不在集合内时，先选择移动方向上的最近一行。
+--- 在可导航行之间循环移动。当前行不在集合内时，先选择移动方向上的最近一行
 ---@param lines integer[]
 ---@param current integer
 ---@param delta -1|1

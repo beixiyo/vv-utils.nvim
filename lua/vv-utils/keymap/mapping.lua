@@ -1,4 +1,4 @@
--- buffer-local 映射的快照、所有权判定与恢复。
+-- buffer-local 映射的快照、所有权判定与恢复
 
 local M = {}
 
