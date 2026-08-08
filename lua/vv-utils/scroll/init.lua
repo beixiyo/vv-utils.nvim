@@ -5,6 +5,7 @@
 
 local animation = require('vv-utils.scroll.animation')
 local input = require('vv-utils.scroll.input')
+local paste = require('vv-utils.scroll.paste')
 local state = require('vv-utils.scroll.state')
 
 local M = {}
@@ -27,9 +28,11 @@ local M = {}
 function M.setup(opts)
   state.setup(opts)
   M._install_scroll_keymaps()
+  paste.install()
 end
 
 function M.disable()
+  paste.uninstall()
   input.uninstall()
   animation.cancel_all()
 end
@@ -43,6 +46,7 @@ M.window = animation.window
 M.mouse = input.mouse
 M.with_view_animation = animation.with_view_animation
 M.with_auto_suppressed = animation.with_auto_suppressed
+M.pasting = paste.active
 
 function M._auto_suppressed()
   return state.auto_suppressed()
