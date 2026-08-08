@@ -179,12 +179,16 @@ function M.is_binary(path, opts)
   return M.inspect(path, opts).binary
 end
 
-local function format_size(size)
+---@param size integer
+---@return string
+function M.format_size(size)
   if size < 1024 then return size .. ' B' end
   if size < 1024 * 1024 then return ('%.1f KiB'):format(size / 1024) end
   if size < 1024 * 1024 * 1024 then return ('%.1f MiB'):format(size / 1024 / 1024) end
   return ('%.1f GiB'):format(size / 1024 / 1024 / 1024)
 end
+
+local format_size = M.format_size
 
 ---@class VVFsFileInfoLinesOptions
 ---@field display_path? string

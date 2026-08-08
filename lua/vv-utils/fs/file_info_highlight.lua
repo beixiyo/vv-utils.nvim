@@ -11,6 +11,15 @@ local groups = {
   value = 'VVUtilsFileInfoValue',
   path = 'VVUtilsFileInfoPath',
   positive = 'VVUtilsFileInfoPositive',
+  pending = 'VVUtilsFileInfoPending',
+  truncated = 'VVUtilsFileInfoTruncated',
+}
+
+-- 属性值的状态标记：由渲染方（dir_info 等）拼进 value，高亮方据此选择配色。
+-- 两侧共用同一份字面量，避免各写一份文案后对不上
+M.markers = {
+  pending = '(scanning…)',
+  truncated = '(truncated',
 }
 
 local function setup_groups()
@@ -20,12 +29,16 @@ local function setup_groups()
     [groups.value] = 'String',
     [groups.path] = 'Directory',
     [groups.positive] = 'DiagnosticOk',
+    [groups.pending] = 'DiagnosticHint',
+    [groups.truncated] = 'WarningMsg',
   }) do
     api.nvim_set_hl(0, name, { default = true, link = link })
   end
 end
 
 local function value_group(label, value)
+  if value:find(M.markers.truncated, 1, true) then return groups.truncated end
+  if value:find(M.markers.pending, 1, true) then return groups.pending end
   if label == 'Path' then return groups.path end
   if label == 'Executable' and value == 'Yes' then return groups.positive end
   return groups.value

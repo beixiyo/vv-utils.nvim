@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.4 - 2026-08-07
+
+### Added
+
+- **fs**：新增目录统计 `inspect_dir` / `scan_dir` / `dir_info_lines`。递归扫描用显式 DFS 栈保存 scandir 句柄，按 entry 粒度检查预算后经 uv timer 让出事件循环，单片占用可控（89 万文件目录下主线程单次最长占用 18ms）；支持 `max_entries` 截断、`max_depth` 限深与随时 `cancel`，不跟随 symlink 因而不会成环
+- **fs**：`file_info_highlight` 增加 `pending` / `truncated` 分组与共享状态标记，让扫描中和被截断的数值不会被读成最终结果
+
 ## 0.5.3 - 2026-08-03
 
 ### Added
