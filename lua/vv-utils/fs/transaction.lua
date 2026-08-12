@@ -1,8 +1,9 @@
--- 文件内容事务
+-- 文件事务适配层
 --
--- 每个实例独立保存最近一次成功事务。写入前校验全部快照，逐文件写入失败时
--- 反向补偿已触碰文件；补偿不完整后锁定实例，避免继续操作未知状态
+-- 文件快照、未保存 buffer 检查和文件写入是 fs 的策略；顺序执行、预检、
+-- 失败补偿、锁定和一层撤回由 vv-utils.transaction 统一负责
 
+local Generic = require('vv-utils.transaction')
 local io = require('vv-utils.fs.io')
 local fs_path = require('vv-utils.fs.path')
 
@@ -10,7 +11,22 @@ local M = {}
 
 ---@class vv-utils.fs.Transaction
 local Transaction = {}
-Transaction.__index = Transaction
+
+local BUSY_ERROR = 'another file transaction is in progress'
+local LOCKED_ERROR = 'previous transaction rollback is incomplete; restart Neovim after recovering the reported files'
+
+local function map_error(error)
+  if error == Generic.BUSY_ERROR then return BUSY_ERROR end
+  if error == Generic.LOCKED_ERROR then return LOCKED_ERROR end
+  if error == 'no operations' then return 'no files changed' end
+
+  -- 通用事务使用机制名称；文件事务继续报告历史公共 API 中的 rollback
+  return tostring(error):gsub('\ncompensation failed:\n', '\nrollback failed:\n')
+end
+
+local function clone_entries(entries)
+  return vim.deepcopy(entries)
+end
 
 ---@param path string
 ---@return integer?
@@ -28,23 +44,21 @@ function Transaction:_modified_buffer(path)
   end
 end
 
----@param entries vv-utils.fs.TransactionEntry[]
+---@param entry vv-utils.fs.TransactionEntry
 ---@param field 'old'|'new'
 ---@return boolean, string?
-function Transaction:_validate(entries, field)
-  for _, entry in ipairs(entries) do
-    local buf = self:_modified_buffer(entry.path)
-    if buf then
-      return false, string.format('unsaved buffer: %s', vim.api.nvim_buf_get_name(buf))
-    end
+function Transaction:_validate_entry(entry, field)
+  local buf = self:_modified_buffer(entry.path)
+  if buf then
+    return false, string.format('unsaved buffer: %s', vim.api.nvim_buf_get_name(buf))
+  end
 
-    local ok, content = pcall(self.read, entry.path)
-    if not ok then
-      return false, string.format('read failed: %s (%s)', entry.path, tostring(content))
-    end
-    if content ~= entry[field] then
-      return false, string.format('file changed since transaction snapshot: %s', entry.path)
-    end
+  local ok, content = pcall(self.read, entry.path)
+  if not ok then
+    return false, string.format('read failed: %s (%s)', entry.path, tostring(content))
+  end
+  if content ~= entry[field] then
+    return false, string.format('file changed since transaction snapshot: %s', entry.path)
   end
   return true
 end
@@ -65,71 +79,92 @@ function Transaction:_write_verified(entry, from_field, to_field)
   end
 end
 
----@param attempted vv-utils.fs.TransactionEntry[]
+---@param entry vv-utils.fs.TransactionEntry
 ---@param from_field 'old'|'new'
 ---@param to_field 'old'|'new'
----@return string[] failures
-function Transaction:_rollback(attempted, from_field, to_field)
-  local failures = {}
-
-  for i = #attempted, 1, -1 do
-    local entry = attempted[i]
-    local ok_read, content = pcall(self.read, entry.path)
-
-    if not ok_read then
-      failures[#failures + 1] = entry.path .. ' (rollback read failed: ' .. tostring(content) .. ')'
-    elseif content ~= entry[to_field] then
-      if content ~= entry[from_field] then
-        failures[#failures + 1] = entry.path .. ' (file changed during rollback)'
-      else
-        local ok_write, write_err = pcall(self._write_verified, self, entry, from_field, to_field)
-        if not ok_write then
-          failures[#failures + 1] = entry.path .. ' (' .. tostring(write_err) .. ')'
-        end
-      end
-    end
+---@return boolean ok
+---@return string|vv-utils.transaction.Failure? error
+function Transaction:_apply_entry(entry, from_field, to_field)
+  local ok_before, before = pcall(self.read, entry.path)
+  if not ok_before then return false, Generic.failure(before, false) end
+  if before ~= entry[from_field] then
+    return false, Generic.failure('file changed before write: ' .. entry.path, false)
   end
-  return failures
+
+  local ok_write, write_error = pcall(self.write, entry.path, entry[to_field])
+  local ok_after, content = pcall(self.read, entry.path)
+  if not ok_write then
+    return false, Generic.failure(write_error, not ok_after or content ~= entry[from_field])
+  end
+  if not ok_after then return false, Generic.failure(content, true) end
+  if content ~= entry[to_field] then
+    return false, Generic.failure('write verification failed: ' .. entry.path, true)
+  end
+  return true
+end
+
+---@param entry vv-utils.fs.TransactionEntry
+---@param from_field 'old'|'new'
+---@param to_field 'old'|'new'
+---@return boolean ok
+---@return string? error
+function Transaction:_compensate_entry(entry, from_field, to_field)
+  local ok_read, content = pcall(self.read, entry.path)
+  if not ok_read then
+    return false, Generic.failure('rollback read failed: ' .. tostring(content), false)
+  end
+
+  if content == entry[to_field] then return true end
+  if content ~= entry[from_field] then
+    return false, Generic.failure('file changed during rollback', false)
+  end
+
+  return self:_apply_entry(entry, from_field, to_field)
 end
 
 ---@param entries vv-utils.fs.TransactionEntry[]
----@return boolean ok
+---@return vv-utils.transaction.Operation[]
+function Transaction:_operations(entries)
+  local operations = {}
+  for index, original in ipairs(entries) do
+    local entry = {
+      path = original.path,
+      old = original.old,
+      new = original.new,
+    }
+
+    operations[index] = {
+      name = entry.path,
+      async = false,
+      validate = function(_, _, _, phase)
+        return self:_validate_entry(entry, phase == 'undo' and 'new' or 'old')
+      end,
+      apply = function()
+        return self:_apply_entry(entry, 'old', 'new')
+      end,
+      compensate = function()
+        return self:_compensate_entry(entry, 'new', 'old')
+      end,
+    }
+  end
+  return operations
+end
+
+---@param entries vv-utils.fs.TransactionEntry[]
+---@return boolean? ok
 ---@return string? error
 ---@return boolean? touched
 function Transaction:apply(entries)
-  if self.busy then return false, 'another file transaction is in progress' end
-  if self.inconsistent then
-    return false, 'previous transaction rollback is incomplete; restart Neovim after recovering the reported files'
-  end
-  if #entries == 0 then return false, 'no files changed' end
+  local ok, error, result = self._core:run(self:_operations(entries))
+  error = error and map_error(error) or nil
 
-  self.busy = true
-  local valid, validation_error = self:_validate(entries, 'old')
-  if not valid then
-    self.busy = false
-    return false, validation_error
+  if ok then
+    self._last_entries = clone_entries(entries)
+    return true, nil, true
   end
 
-  local attempted = {}
-  for _, entry in ipairs(entries) do
-    attempted[#attempted + 1] = entry
-    local ok, error = pcall(self._write_verified, self, entry, 'old', 'new')
-
-    if not ok then
-      local rollback_failures = self:_rollback(attempted, 'new', 'old')
-      self.busy = false
-      self.inconsistent = #rollback_failures > 0
-
-      local suffix = #rollback_failures > 0
-        and '\nrollback failed:\n' .. table.concat(rollback_failures, '\n')
-        or ''
-      return false, tostring(error) .. suffix, true
-    end
-  end
-
-  self.last = vim.deepcopy(entries)
-  self.busy = false
-  return true, nil, true
+  if result and result.touched > 0 then return false, error, true end
+  return false, error
 end
 
 ---@return boolean ok
@@ -137,43 +172,32 @@ end
 ---@return integer? count
 ---@return boolean? touched
 function Transaction:undo()
-  if self.busy then return false, 'another file transaction is in progress' end
-  if self.inconsistent then
-    return false, 'previous transaction rollback is incomplete; restart Neovim after recovering the reported files'
-  end
-  if not self.last then return false, 'nothing to undo' end
+  local ok, error, result = self._core:undo()
+  error = error and map_error(error) or nil
 
-  self.busy = true
-  local valid, validation_error = self:_validate(self.last, 'new')
-  if not valid then
-    self.busy = false
-    return false, validation_error
+  if ok then
+    local count = result and result.count or nil
+    self._last_entries = nil
+    return true, nil, count, true
   end
 
-  local attempted = {}
-  for _, entry in ipairs(self.last) do
-    attempted[#attempted + 1] = entry
-    local ok, error = pcall(self._write_verified, self, entry, 'new', 'old')
-    if not ok then
-      local rollback_failures = self:_rollback(attempted, 'old', 'new')
-      self.busy = false
-      self.inconsistent = #rollback_failures > 0
-      local suffix = #rollback_failures > 0
-        and '\nrollback failed:\n' .. table.concat(rollback_failures, '\n')
-        or ''
-      return false, tostring(error) .. suffix, nil, true
-    end
-  end
-
-  local count = #self.last
-  self.last = nil
-  self.busy = false
-  return true, nil, count, true
+  if result and result.touched > 0 then return false, error, nil, true end
+  return false, error
 end
 
 ---@return boolean
 function Transaction:can_undo()
-  return self.last ~= nil and not self.inconsistent
+  return self._core:can_undo()
+end
+
+---@return boolean
+function Transaction:is_busy()
+  return self._core:is_busy()
+end
+
+---@return boolean
+function Transaction:is_locked()
+  return self._core:is_locked()
 end
 
 ---创建状态互相隔离的文件事务实例
@@ -182,14 +206,25 @@ end
 function M.new(opts)
   opts = opts or {}
 
-  return setmetatable({
+  local transaction = {
+    _core = Generic.new(),
     read = opts.read or io.read_all,
     write = opts.write or io.write_all,
     check_modified_buffers = opts.check_modified_buffers ~= false,
-    last = nil,
-    busy = false,
-    inconsistent = false,
-  }, Transaction)
+    _last_entries = nil,
+  }
+
+  return setmetatable(transaction, {
+    __index = function(self, key)
+      local method = Transaction[key]
+      if method ~= nil then return method end
+      if key == 'busy' then return self._core.busy end
+      if key == 'inconsistent' then return self._core.inconsistent end
+      if key == 'locked' then return self._core.locked end
+      if key == 'last' then return self._last_entries end
+      return nil
+    end,
+  })
 end
 
 ---@class vv-utils.fs.TransactionEntry

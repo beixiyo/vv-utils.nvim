@@ -129,6 +129,30 @@ test('撤回中途失败时恢复事务后状态并允许重试', function()
   assert_eq(files.b, 'old-b')
 end)
 
+test('撤回写入前失败不会锁定事务且允许重试', function()
+  local files = { a = 'old-a' }
+  local fail_before_write = false
+  local transaction = memory_transaction(files, function(path, content)
+    if fail_before_write and content == 'old-a' then error('undo write failed before touching file') end
+    files[path] = content
+  end)
+
+  assert(transaction:apply({ { path = 'a', old = 'old-a', new = 'new-a' } }))
+  fail_before_write = true
+
+  local ok, error, _, touched = transaction:undo()
+  assert_eq(ok, false)
+  assert(error:find('undo write failed before touching file', 1, true), error)
+  assert_eq(touched, nil)
+  assert_eq(files.a, 'new-a')
+  assert(not transaction:is_locked())
+  assert(transaction:can_undo())
+
+  fail_before_write = false
+  assert(transaction:undo())
+  assert_eq(files.a, 'old-a')
+end)
+
 test('新的成功事务覆盖上一层撤回记录', function()
   local files = { a = 'old' }
   local transaction = memory_transaction(files)
