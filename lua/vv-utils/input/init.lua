@@ -5,15 +5,14 @@
 -- 即可原位更新同一个字段
 
 local M = {}
+local Keys = require('vv-utils.keys')
 
 ---@alias VVInputChunk [string, string?]
 
 ---@param lhs string
 ---@return string
 function M.display_key(lhs)
-  local keys = vim.api.nvim_replace_termcodes(lhs, true, true, true)
-  local label = vim.fn.keytrans(keys):gsub('<NL>', '^J')
-  return label
+  return Keys.display(lhs)
 end
 
 ---@param icon? string

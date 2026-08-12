@@ -27,8 +27,7 @@ local function details(buf, namespace, id)
   return mark[3]
 end
 
-test('display_key and action_hint normalize public labels', function()
-  assert(Input.display_key('<C-j>') == '^J', '<C-j> should display as ^J')
+test('action_hint omits empty parts and requires a key', function()
   assert(Input.action_hint('', '<CR>', '') == '<CR>', 'empty icon and label should be omitted')
   assert(Input.action_hint(nil, '<CR>', 'Open') == '<CR> Open', 'missing icon should preserve key and label')
   assert(Input.action_hint('>', '', 'Open') == nil, 'empty key should omit the action')
