@@ -20,6 +20,8 @@
 --   download    跨平台文件下载（curl / wget / PowerShell 自动选择）
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
 --   input       声明式输入字段装饰（label / placeholder extmark + key/action 标签）
+--   keys        Neovim 键位记号的紧凑展示（^ / ⌥ / ⇧ / ⌘ / ↵）
+--   confirm     通用确认浮窗（可配置内容、动作、危险级别与窗口参数）
 --   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
 --   color       RGB / RGBA 解析、格式化、插值与 alpha 合成
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）
@@ -32,6 +34,7 @@
 --   bigfile     【副作用】大文件保护：filetype 探测 + 禁用重开销特性
 --   format      【副作用可选】中英文加空格 / 行尾清理（开启时注册 :VVAddSpaces / :VVCleanTrailing）
 --   scroll      跨窗口平滑滚动（基于 vv-utils.animate，支持 easing + 连按去重 / 跳转动画包装）
+--   transaction 通用事务机制（顺序预检、失败逆序补偿、锁定与一层撤回）
 --
 -- 用法：
 --   local vv = require('vv-utils')
@@ -57,15 +60,17 @@
 ---@field bigfile? boolean|vv-utils.bigfile.Opts   true=默认启用；table=启用并透传；缺省/false=不启用
 ---@field format?  boolean|vv-utils.format.Opts    true=默认启用；table=启用并透传；缺省/false=不启用
 ---@field scroll?  boolean|vv-utils.scroll.Opts    true=键盘滚动和视口跳转动画；table=启用并透传配置；缺省/false=不启用
+---@field confirm? boolean|VVConfirmConfig         true=使用默认动作；table=配置全局确认框动作；缺省/false=保持模块默认值
 
 local M = {}
 
--- 列出所有「带可选 setup 副作用」的子模块；新增带副作用的模块只需在此追加
+-- 列出所有可由 facade 统一配置的子模块；未显式传入的模块保持当前配置
 local SETUPABLE = {
   'drop',
   'bigfile',
   'format',
   'scroll',
+  'confirm',
 }
 
 ---@param opts? vv-utils.Opts
