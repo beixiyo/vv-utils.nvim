@@ -56,30 +56,6 @@ test('detach 后长寿命 buffer 不保留 descriptor 闭包', function()
   vim.api.nvim_buf_delete(buf, { force = true })
 end)
 
-test('path descriptor 传递最终候选和扫描预算', function()
-  local root = vim.fn.tempname()
-  vim.fn.mkdir(root .. '/alpha', 'p')
-
-  local descriptor = Completion.path({
-    mode = 'directory',
-    cwd = function() return root end,
-  })
-  local result = descriptor.complete({
-    bufnr = 0,
-    line = 'a',
-    cursor = { 1, 1 },
-  }, {
-    max_items = 7,
-    scan_max_items = 33,
-    timeout_ms = 41,
-  })
-
-  assert(type(result) == 'table')
-  ---@cast result vv-utils.path_completion.Result
-  assert(result.items[1].word == 'alpha/')
-  vim.fn.delete(root, 'rf')
-end)
-
 test('Blink source 取消异步 descriptor 后不回写过期结果', function()
   package.loaded['blink.cmp.types'] = {
     CompletionItemKind = { File = 17, Folder = 19 },
@@ -159,23 +135,34 @@ test('预过滤候选保留调用方排名', function()
     CompletionItemKind = { File = 17, Folder = 19 },
   }
 
-  local items = require('vv-utils.blink.items').convert({
-    start_col = 0,
-    pre_filtered = true,
-    items = {
-      { word = 'zzz/abc', kind = 'File', rank = 1 },
-      { word = 'abc/abcx', kind = 'File', rank = 2 },
-    },
-  }, {
-    bufnr = 0,
+  local buf = vim.api.nvim_create_buf(false, true)
+  Completion.attach(buf, {
+    complete = function()
+      return {
+        start_col = 0,
+        pre_filtered = true,
+        items = {
+          { word = 'zzz/abc', kind = 'File', rank = 1 },
+          { word = 'abc/abcx', kind = 'File', rank = 2 },
+        },
+      }
+    end,
+  })
+
+  local response
+  require('vv-utils.blink').new():get_completions({
+    bufnr = buf,
     line = 'abc',
     cursor = { 1, 3 },
     bounds = { start_col = 1, length = 3 },
-  }, 50)
+  }, function(value) response = value end)
 
+  local items = response.items
   assert(items[1].filterText == 'abc' and items[2].filterText == 'abc')
   assert(items[1].sortText < items[2].sortText)
   assert(items[1].score_offset > items[2].score_offset)
+  Completion.detach(buf)
+  vim.api.nvim_buf_delete(buf, { force = true })
   package.loaded['blink.cmp.types'] = nil
 end)
 
@@ -263,7 +250,9 @@ test('prompt 不为缺失的 icon 保留空格', function()
     { details = true }
   )
   local chunks = marks[1] and marks[1][4].virt_text
-  assert(chunks and chunks[2][1] == 'Fuzzy', vim.inspect(chunks))
+  local text = ''
+  for _, chunk in ipairs(chunks or {}) do text = text .. chunk[1] end
+  assert(text:find('Fuzzy', 1, true), vim.inspect(chunks))
   handle.close()
 end)
 

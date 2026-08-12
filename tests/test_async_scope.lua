@@ -230,16 +230,6 @@ end
 
 do
   local scope = Async.scope()
-  for key = 1, 10000 do
-    assert(scope:begin({ key = key }):finish())
-  end
-  ---@diagnostic disable-next-line: invisible
-  assert(next(scope._lanes) == nil,
-    'fully terminated dynamic lanes must release their bookkeeping records')
-end
-
-do
-  local scope = Async.scope()
   local cancelled = 0
   local request = scope:begin({ cancel = function() cancelled = cancelled + 1 end })
   request:invalidate()

@@ -56,7 +56,7 @@ test('保留 ./ 和含空格目录', function()
 end)
 
 test('未锚定片段可补全任意深度的路径', function()
-  if vim.fn.executable('fd') ~= 1 then return end
+  assert(vim.fn.executable('fd') == 1, '此测试需要 fd，不能静默跳过递归补全覆盖')
 
   local result = completion.glob('core', { cwd = root })
   assert(item(result, 'packages/core/').kind == 'Folder')
@@ -65,7 +65,7 @@ test('未锚定片段可补全任意深度的路径', function()
 end)
 
 test('./ 前缀始终锚定 cwd', function()
-  if vim.fn.executable('fd') ~= 1 then return end
+  assert(vim.fn.executable('fd') == 1, '此测试需要 fd，不能静默跳过递归补全覆盖')
 
   assert(#completion.glob('./core', { cwd = root }).items == 0)
   assert(item(completion.glob('./pack', { cwd = root }), './packages/'))
@@ -155,7 +155,7 @@ test('最终候选数量可独立配置', function()
 end)
 
 test('fd 在扫描预算前应用 basename 和 parent 约束', function()
-  if vim.fn.executable('fd') ~= 1 then return end
+  assert(vim.fn.executable('fd') == 1, '此测试需要 fd，不能静默跳过扫描预算覆盖')
 
   for index = 1, 80 do
     local directory = string.format('%s/noise-%02d', root, index)

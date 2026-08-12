@@ -94,7 +94,9 @@ assert(cancelled.calls == 0, 'a cancelled scan must not report progress or compl
 assert(not cancelled_handle.is_done(), 'a cancelled scan should never be reported as done')
 
 -- ⑥ symlink 不跟随，指向祖先目录也不成环
-if vim.uv.fs_symlink(fixture, fixture .. '/nested/loop') then
+do
+  local linked, link_error = vim.uv.fs_symlink(fixture, fixture .. '/nested/loop')
+  assert(linked, '无法创建 symlink fixture，不能静默跳过环路覆盖: ' .. tostring(link_error))
   local looped = {}
   local loop_handle = Fs.scan_dir(fixture, {
     max_entries = 10000,

@@ -9,7 +9,7 @@ local path = vim.fs.joinpath(tmp, 'fixture.ts')
 local uri = vim.uri_from_fname(path)
 
 Fs.mkdir_p(tmp)
-Fs.write_all(path, 'alpha beta\n')
+Fs.write_all(path, '甲😀乙 beta\n')
 local bufnr = vim.fn.bufadd(path)
 vim.fn.bufload(bufnr)
 
@@ -17,11 +17,11 @@ local transaction, error = WorkspaceEdit.prepare({{
   encoding = 'utf-16',
   edit = { changes = { [uri] = {
     {
-      range = { start = { line = 0, character = 0 }, ['end'] = { line = 0, character = 5 } },
+      range = { start = { line = 0, character = 0 }, ['end'] = { line = 0, character = 4 } },
       newText = 'one',
     },
     {
-      range = { start = { line = 0, character = 6 }, ['end'] = { line = 0, character = 10 } },
+      range = { start = { line = 0, character = 5 }, ['end'] = { line = 0, character = 9 } },
       newText = 'two',
     },
   } } },

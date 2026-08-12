@@ -15,7 +15,7 @@ local groups = {
   truncated = 'VVUtilsFileInfoTruncated',
 }
 
--- 属性值的状态标记：由渲染方（dir_info 等）拼进 value，高亮方据此选择配色。
+-- 属性值的状态标记：由渲染方（dir_info 等）拼进 value，高亮方据此选择配色
 -- 两侧共用同一份字面量，避免各写一份文案后对不上
 M.markers = {
   pending = '(scanning…)',
