@@ -46,4 +46,27 @@ local recovered, recovered_closed = UIWindow.ensure_unique_buffer_window(tab, pa
 assert(recovered == keeper, 'preferred 失效时应复用现存 panel window')
 assert(#recovered_closed == 1 and recovered_closed[1] == late_duplicate, '应关闭后出现的 orphan window')
 
-print('[PASS] ui_window: panel buffer window 唯一性')
+local float_buf = vim.api.nvim_create_buf(false, true)
+local float_lines = vim.tbl_map(tostring, vim.fn.range(1, 100))
+vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, float_lines)
+local float = UIWindow.open_float(float_buf, {
+  width = vim.o.columns * 2,
+  height = vim.o.lines * 2,
+  title = ' 固定标题 ',
+  footer = ' 固定页脚 ',
+  chrome = { cursorline = true },
+})
+local config = vim.api.nvim_win_get_config(float.win)
+
+assert(config.width == math.max(1, vim.o.columns - 4), '浮窗宽度应受编辑器尺寸约束')
+assert(config.height == math.max(1, vim.o.lines - 4), '浮窗高度应受编辑器尺寸约束')
+assert(config.title[1][1] == ' 固定标题 ', '标题应固定在浮窗边框')
+assert(config.footer[1][1] == ' 固定页脚 ', '页脚应固定在浮窗边框')
+assert(vim.wo[float.win].cursorline, '调用方应能覆盖 window chrome')
+assert(not vim.wo[float.win].number, '浮窗不应显示行号')
+
+float.close()
+float.close()
+assert(not vim.api.nvim_win_is_valid(float.win), 'close 应可重复调用')
+
+print('[PASS] ui_window: window 唯一性与居中浮窗约束')

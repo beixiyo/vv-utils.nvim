@@ -28,6 +28,75 @@ M.DEFAULT_OPTS = {
   spell = false,
 }
 
+---@class VVUIWindowFloatOptions
+---@field width integer 期望的正文宽度
+---@field height integer 期望的正文高度
+---@field margin? integer 为编辑器边缘预留的总宽高 @default 4
+---@field enter? boolean 是否进入新窗口 @default true
+---@field border? string|string[] 边框样式 @default 'rounded'
+---@field title? string|table[] 固定在边框上的标题
+---@field title_pos? 'left'|'center'|'right' 标题位置 @default 'center'
+---@field footer? string|table[] 固定在边框上的页脚
+---@field footer_pos? 'left'|'center'|'right' 页脚位置 @default 'center'
+---@field chrome? table<string, any> window-local 选项覆盖
+
+---@class VVUIWindowFloatHandle
+---@field win integer
+---@field buf integer
+---@field close fun() 幂等关闭浮窗
+
+---生成受当前编辑器尺寸约束的居中浮窗配置
+---@param opts VVUIWindowFloatOptions
+---@return table
+function M.centered_config(opts)
+  vim.validate('opts', opts, 'table')
+  vim.validate('opts.width', opts.width, 'number')
+  vim.validate('opts.height', opts.height, 'number')
+
+  local margin = math.max(0, opts.margin or 4)
+  local width = math.max(1, math.min(math.floor(opts.width), math.max(1, vim.o.columns - margin)))
+  local height = math.max(1, math.min(math.floor(opts.height), math.max(1, vim.o.lines - margin)))
+  local config = {
+    relative = 'editor',
+    row = math.max(0, math.floor((vim.o.lines - height) / 2)),
+    col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+    width = width,
+    height = height,
+    style = 'minimal',
+    border = opts.border or 'rounded',
+  }
+
+  if opts.title then
+    config.title = opts.title
+    config.title_pos = opts.title_pos or 'center'
+  end
+  if opts.footer then
+    config.footer = opts.footer
+    config.footer_pos = opts.footer_pos or 'center'
+  end
+
+  return config
+end
+
+---用已有 buffer 打开居中浮窗；内容、映射和业务生命周期由调用方负责
+---@param buf integer
+---@param opts VVUIWindowFloatOptions
+---@return VVUIWindowFloatHandle
+function M.open_float(buf, opts)
+  assert(vim.api.nvim_buf_is_valid(buf), 'buf must be a valid buffer')
+
+  local win = assert(vim.api.nvim_open_win(buf, opts.enter ~= false, M.centered_config(opts)))
+  M.hide_chrome(win, opts.chrome)
+
+  return {
+    win = win,
+    buf = buf,
+    close = function()
+      if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
+    end,
+  }
+end
+
 ---@param win integer
 ---@param overrides? table<string, any>
 ---@return fun() restore  把 win 恢复到调用前的选项值（win 无效时 no-op）

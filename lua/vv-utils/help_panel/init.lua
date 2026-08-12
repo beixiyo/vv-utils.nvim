@@ -15,34 +15,11 @@
 --   })
 
 local hl = require('vv-utils.hl')
+local Keys = require('vv-utils.keys')
+local UIWindow = require('vv-utils.ui_window')
 
 local M = {}
 local ns = vim.api.nvim_create_namespace('vv-utils.help_panel')
-
-local function format_lhs(lhs)
-  if lhs == '<CR>' then return '↵' end
-
-  local key = lhs:match('^<(.*)>$') or lhs
-  local prefixes = { C = '^', M = '⌥', A = '⌥', S = '⇧' }
-  local hints = {}
-  local has_ctrl = false
-  local has_shift = false
-
-  while true do
-    local modifier, rest = key:match('^([CMSA])%-(.+)$')
-    if not modifier then break end
-
-    hints[#hints + 1] = prefixes[modifier]
-    has_ctrl = has_ctrl or modifier == 'C'
-    has_shift = has_shift or modifier == 'S'
-    key = rest
-  end
-
-  -- Neovim 会把 <C-x> 的 lhs 规范化为 <C-X>；Ctrl 不区分大小写，恢复为小写展示
-  if has_ctrl and not has_shift and #key == 1 then key = key:lower() end
-
-  return table.concat(hints) .. key
-end
 
 hl.register('vv-utils.help_panel.hl', {
   VVHelpTitle    = { link = 'Title' },
@@ -112,20 +89,20 @@ local function collect(opts)
 end
 
 ---@param opts VVHelpPanelOpts
-function M.open(opts)
-  assert(opts and opts.source_buf and opts.desc_prefix,
-    'help-panel: source_buf & desc_prefix required')
-
-  local by_cat = collect(opts)
-
+---@param by_cat table<string, {lhs:string, action:string, icon:string}[]>
+---@return string[]
+local function build_categories(opts, by_cat)
   -- extra_rows：注入到 by_cat（其分类若未在 categories 里也会兜底到 Other 之前追加）
-  local extra_cats_seen = {}
+  local extra_cats, extra_cats_seen = {}, {}
   if opts.extra_rows then
     for _, r in ipairs(opts.extra_rows) do
       local cat = r.cat or 'Other'
       by_cat[cat] = by_cat[cat] or {}
       table.insert(by_cat[cat], { lhs = r.lhs, action = r.action, icon = r.icon or '' })
-      extra_cats_seen[cat] = true
+      if not extra_cats_seen[cat] then
+        extra_cats_seen[cat] = true
+        extra_cats[#extra_cats + 1] = cat
+      end
     end
   end
 
@@ -134,10 +111,9 @@ function M.open(opts)
     ordered_cats[#ordered_cats + 1] = c
     extra_cats_seen[c] = nil
   end
-  -- 追加 extra_rows 中未在 categories 里声明的分类（按出现顺序——这里以 keys 遍历，
-  -- 对单个新分类足够；多个时调用方应在 categories 里显式声明顺序）
-  for cat in pairs(extra_cats_seen) do
-    ordered_cats[#ordered_cats + 1] = cat
+  -- 追加 extra_rows 中未在 categories 里声明的分类，保持首次出现顺序
+  for _, cat in ipairs(extra_cats) do
+    if extra_cats_seen[cat] then ordered_cats[#ordered_cats + 1] = cat end
   end
   -- 追加 Other（若未显式声明）
   local has_other = false
@@ -148,13 +124,19 @@ function M.open(opts)
   for _, c in ipairs(ordered_cats) do
     if by_cat[c] and #by_cat[c] > 0 then cats[#cats + 1] = c end
   end
-  if #cats == 0 then return end
+  return cats
+end
 
+---@param opts VVHelpPanelOpts
+---@param by_cat table<string, {lhs:string, action:string, icon:string, display_lhs?:string}[]>
+---@param cats string[]
+---@return { lines:string[], highlights:table[], width:integer, first_action_line:integer }
+local function render_content(opts, by_cat, cats)
   -- 统一 key 列宽
   local key_w = 0
   for _, rows in pairs(by_cat) do
     for _, r in ipairs(rows) do
-      r.display_lhs = format_lhs(r.lhs)
+      r.display_lhs = Keys.display(r.lhs)
       key_w = math.max(key_w, vim.fn.strdisplaywidth(r.display_lhs))
     end
   end
@@ -223,36 +205,59 @@ function M.open(opts)
     if w > max_w then max_w = w end
   end
 
+  return {
+    lines = lines,
+    highlights = hls,
+    width = max_w + 4,
+    first_action_line = 4,
+  }
+end
+
+---@param opts VVHelpPanelOpts
+---@param content { lines:string[], highlights:table[] }
+---@return integer
+local function create_buffer(opts, content)
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, content.lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].bufhidden = 'wipe'
   vim.bo[buf].filetype = opts.filetype or 'vv-help'
-  for _, h in ipairs(hls) do
+  for _, h in ipairs(content.highlights) do
     pcall(vim.api.nvim_buf_set_extmark, buf, ns, h.row, h.col, {
       end_col = h.end_col, hl_group = h.hl,
     })
   end
+  return buf
+end
 
-  local ui = vim.api.nvim_list_uis()[1]
-  local height = math.min(#lines, (ui and ui.height or 40) - 4)
-  local width = math.min(max_w + 4, (ui and ui.width or 80) - 4)
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = 'editor', style = 'minimal', border = 'rounded',
-    title = ' help ', title_pos = 'center',
-    row = math.floor(((ui and ui.height or 40) - height) / 2),
-    col = math.floor(((ui and ui.width or 80) - width) / 2),
-    width = width, height = height,
+---@param buf integer
+---@param close fun()
+local function setup_keymaps(buf, close)
+  local opts = { buffer = buf, nowait = true, silent = true }
+  vim.keymap.set('n', 'q', close, opts)
+  vim.keymap.set('n', '<Esc>', close, opts)
+end
+
+---@param opts VVHelpPanelOpts
+function M.open(opts)
+  assert(opts and opts.source_buf and opts.desc_prefix,
+    'help-panel: source_buf & desc_prefix required')
+
+  local by_cat = collect(opts)
+  local cats = build_categories(opts, by_cat)
+  if #cats == 0 then return end
+
+  local content = render_content(opts, by_cat, cats)
+  local buf = create_buffer(opts, content)
+  local view = UIWindow.open_float(buf, {
+    width = content.width,
+    height = #content.lines,
+    title = ' help ',
+    chrome = { cursorline = true },
   })
-  vim.wo[win].cursorline = true
-  -- 光标落在首个 keymap 行（title + blank + cat header = 3 → first keymap = 4）
-  pcall(vim.api.nvim_win_set_cursor, win, { 4, 0 })
 
-  local close = function()
-    if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
-  end
-  vim.keymap.set('n', 'q', close, { buffer = buf, nowait = true, silent = true })
-  vim.keymap.set('n', '<Esc>', close, { buffer = buf, nowait = true, silent = true })
+  pcall(vim.api.nvim_win_set_cursor, view.win, { content.first_action_line, 0 })
+  setup_keymaps(buf, view.close)
 end
 
 return M
