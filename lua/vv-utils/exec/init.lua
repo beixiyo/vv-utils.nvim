@@ -1,115 +1,95 @@
--- 按文件类型决定「该用什么命令执行」：shebang > 扩展名优先级 > （无则报错）
--- 纯函数、无副作用：只解析出要运行的 argv，怎么跑（终端/后台）交给调用方
+-- vv-utils.exec 公共入口：按固定优先级编排 shebang、项目入口与扩展名 runner
+
+local Common = require('vv-utils.exec.common')
+local Confirm = require('vv-utils.exec.confirm')
+local ProjectRunners = require('vv-utils.exec.parsers')
+local Shebang = require('vv-utils.exec.parsers.shebang')
+local Runners = require('vv-utils.exec.runners')
+local Source = require('vv-utils.exec.source')
 
 local M = {}
+M.common = Common
+M.confirm = Confirm
+M.parsers = ProjectRunners
+M.runners = Runners
+M.source = Source
 
--- 读首行 shebang，解析出解释器 argv 前缀（如 {'bash'} / {'python3'}）；无则 nil
--- `/usr/bin/env foo` 形态丢掉 env 这层，取真正解释器
----@param path string
----@return string[]?
-local function parse_shebang(path)
-  local f = io.open(path, 'r')
-  if not f then return nil end
-  local chunk = f:read(512) or '' -- 只读头部，避免对无换行大文件全量扫描
-  f:close()
+---@alias VVExecRunnerPrefix string[]
+---@alias VVExecRunnerList VVExecRunnerPrefix[]
 
-  local line = chunk:match('^#!([^\n]*)')
-  if not line then return nil end
+---@class VVExecPlan
+---@field cmd string[] 完整 argv；不经过 shell 拼接
+---@field runner string 实际使用的 runner 名称
+---@field cwd? string 执行目录；由项目解析器或自定义计划显式提供
+---@field target? 'file'|'project' UI 提示目标类型；内置项目解析器返回 'project'
 
-  local parts = {}
-  for tok in line:gmatch('%S+') do parts[#parts + 1] = tok end
-
-  local first = parts[1]
-  if first and (first == 'env' or first:match('/env$')) then
-    table.remove(parts, 1)
-    -- 现代 `env -S foo bar` 多参 shebang：再剥掉 -S / --split-string
-    if parts[1] == '-S' or parts[1] == '--split-string' then
-      table.remove(parts, 1)
-    end
-  end
-  return parts[1] and parts or nil
-end
-
--- argv 前缀的第一个元素是否可执行
----@param prefix string[]
----@return boolean
-local function usable(prefix)
-  return prefix[1] ~= nil and vim.fn.executable(prefix[1]) == 1
-end
-
--- 把 argv 前缀 + 文件绝对路径拼成完整命令（不改动 defaults 里的前缀）
----@param prefix string[]
----@param abspath string
----@return string[]
-local function build_cmd(prefix, abspath)
-  local cmd = vim.deepcopy(prefix)
-  cmd[#cmd + 1] = abspath
-  return cmd
-end
+---@alias VVExecProjectRunner fun(path: string): VVExecPlan?
 
 ---@class VVExecConfig
----@field shebang boolean  优先读 shebang 决定解释器 @default true
----@field runners table<string, string[][]>  扩展名(小写) → 运行器优先级；每项是 argv 前缀，命中后追加文件绝对路径，取首个可执行者 @default 见下
+---@field shebang? boolean 优先读 shebang 决定解释器 @default true
+---@field project_runners? table<string, false|VVExecProjectRunner> 项目型语言解析器；键为小写扩展名，false 禁用内置解析器，返回 nil 时继续普通扩展名 runner @default Rust/Go
+---@field runners? table<string, VVExecRunnerList> 扩展名(小写) → 运行器优先级；每项是 argv 前缀，命中后追加文件绝对路径，取首个可执行者 @default 见下
 local defaults = {
   shebang = true,
-  runners = {
-    sh   = { { 'bash' }, { 'sh' } },
-    bash = { { 'bash' } },
-    zsh  = { { 'zsh' } },
-    fish = { { 'fish' } },
-    ts   = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' }, { 'ts-node' } },
-    tsx  = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
-    mts  = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
-    cts  = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
-    js   = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
-    mjs  = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
-    cjs  = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
-    py   = { { 'python3' }, { 'python' } },
-    lua  = { { 'lua' }, { 'luajit' } },
-    rb   = { { 'ruby' } },
-    pl   = { { 'perl' } },
-    php  = { { 'php' } },
-  },
+  project_runners = ProjectRunners,
+  runners = Runners,
 }
 
--- 解析某文件的执行命令
 ---@param path string
----@param opts? VVExecConfig  深合并进默认（runners 可增减、改优先级）
----@return { cmd: string[], runner: string }? plan, string? err
+---@param opts? VVExecConfig 深合并进默认（project_runners / runners 可增减、改优先级）
+---@return VVExecPlan? plan, string? err
 function M.resolve(path, opts)
   if not path or path == '' then return nil, 'empty path' end
 
-  local cfg = opts and vim.tbl_deep_extend('force', defaults, opts) or defaults
-  local abspath = vim.fn.fnamemodify(path, ':p')
+  local config = opts and vim.tbl_deep_extend('force', {}, defaults, opts) or defaults
+  local absolute_path = vim.fn.fnamemodify(path, ':p')
 
-  -- 1) shebang —— 显式作者意图优先（覆盖扩展名）
-  if cfg.shebang ~= false then
-    local sb = parse_shebang(abspath)
-    if sb and usable(sb) then
-      return { cmd = build_cmd(sb, abspath), runner = sb[1] }
+  if config.shebang ~= false then
+    local prefix = Shebang.parse(absolute_path)
+    local source_dir = vim.fs.dirname(absolute_path)
+
+    if prefix and Common.executable(prefix, source_dir) then
+      local executable_prefix = Common.normalize_prefix(prefix, source_dir)
+      return {
+        cmd = Common.append_path(executable_prefix, absolute_path),
+        runner = prefix[1],
+        target = 'file',
+      }
     end
   end
 
-  -- 2) 扩展名优先级 —— 取首个可执行的运行器
-  local ext = abspath:match('%.([%w_]+)$')
-  if ext then
-    local list = cfg.runners[ext:lower()]
-    if list then
-      for _, prefix in ipairs(list) do
-        if usable(prefix) then
-          return { cmd = build_cmd(prefix, abspath), runner = prefix[1] }
-        end
-      end
+  local extension = absolute_path:match('%.([%w_]+)$')
+  if not extension then
+    return nil, 'Unknown file type: ' .. vim.fs.basename(absolute_path) .. ' (no shebang and no matching extension)'
+  end
+  extension = extension:lower()
 
-      local names = {}
-      for _, p in ipairs(list) do names[#names + 1] = p[1] end
-      return nil, ('.' .. ext .. ': no available runner (requires one of: '
-        .. table.concat(names, ', ') .. ')')
+  local project_runner = config.project_runners[extension]
+  if type(project_runner) == 'function' then
+    local plan = project_runner(absolute_path)
+    if plan then return plan end
+  end
+
+  local candidates = config.runners[extension]
+  if not candidates then
+    return nil, 'Unknown file type: .' .. extension .. ' (no shebang and no matching extension)'
+  end
+
+  for _, prefix in ipairs(candidates) do
+    local source_dir = vim.fs.dirname(absolute_path)
+    if Common.executable(prefix, source_dir) then
+      local executable_prefix = Common.normalize_prefix(prefix, source_dir)
+      return {
+        cmd = Common.append_path(executable_prefix, absolute_path),
+        runner = prefix[1],
+        target = 'file',
+      }
     end
   end
 
-  return nil, ('Unknown file type: ' .. (ext and ('.' .. ext) or vim.fs.basename(abspath))
-    .. ' (no shebang and no matching extension)')
+  local names = {}
+  for _, prefix in ipairs(candidates) do names[#names + 1] = prefix[1] end
+  return nil, ('.%s: no available runner (requires one of: %s)'):format(extension, table.concat(names, ', '))
 end
 
 return M

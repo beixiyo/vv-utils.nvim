@@ -1,0 +1,25 @@
+-- vv-utils.exec 默认单文件 runner：按扩展名声明解释器优先级
+
+return {
+  sh = { { 'bash' }, { 'sh' } },
+  bash = { { 'bash' } },
+  zsh = { { 'zsh' } },
+  fish = { { 'fish' } },
+  ts = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' }, { 'ts-node' } },
+  tsx = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
+  mts = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
+  cts = { { 'bun', 'run' }, { 'tsx' }, { 'deno', 'run' } },
+  js = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
+  mjs = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
+  cjs = { { 'bun' }, { 'node' }, { 'deno', 'run' } },
+  py = { { 'python3' }, { 'python' } },
+  lua = { { 'lua' }, { 'luajit' } },
+  swift = { { 'swift' } },
+  dart = { { 'dart', 'run' } },
+  zig = { { 'zig', 'run' } },
+  jl = { { 'julia' } },
+  java = { { 'java' } },
+  rb = { { 'ruby' } },
+  pl = { { 'perl' } },
+  php = { { 'php' } },
+}
