@@ -106,6 +106,7 @@ local function display_token(token)
 
   local control = token:match('^%^([A-Z])$')
   if control then return '^' .. control:lower() end
+  if token:match('^[A-Z]$') then return modifiers.S .. token end
   return token
 end
 

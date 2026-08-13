@@ -34,12 +34,14 @@ hl.register('vv-utils.help_panel.hl', {
 ---@class VVHelpActionMeta
 ---@field cat string      分类名（用于分组）
 ---@field icon? string    nerd-font 图标字符
+---@field icon_hl? string 图标高亮组；缺省使用 VVHelpIcon
 
 ---@class VVHelpExtraRow
 ---@field cat string             分类（与 categories 对应；未声明的分类会自动追加到 ordered_cats 末尾）
 ---@field lhs string             键位字面量（如 '<S-Tab>'）
 ---@field action string          动作名（不走 actions meta，直接渲染）
 ---@field icon? string           图标字符（默认空）
+---@field icon_hl? string        图标高亮组；缺省使用 VVHelpIcon
 
 ---@class VVHelpPanelOpts
 ---@field source_buf integer                              从哪个 buffer 读取 keymap
@@ -48,6 +50,7 @@ hl.register('vv-utils.help_panel.hl', {
 ---@field categories? string[]                            分类渲染顺序，未提及的分类归入 'Other'
 ---@field title? string                                   浮窗顶部标题文本
 ---@field title_icon? string                              标题前的图标
+---@field title_icon_hl? string                           标题图标高亮组；缺省使用 VVHelpTitle
 ---@field filetype? string                                浮窗 buffer 的 filetype
 ---@field extra_rows? VVHelpExtraRow[]                    额外注入的行（不来自 buf keymap，如浮窗 prompt 的快捷键）
 
@@ -76,7 +79,12 @@ local function collect(opts)
       end
 
       by_cat[cat] = by_cat[cat] or {}
-      table.insert(by_cat[cat], { lhs = m.lhs, action = action, icon = meta.icon or '' })
+      table.insert(by_cat[cat], {
+        lhs = m.lhs,
+        action = action,
+        icon = meta.icon or '',
+        icon_hl = meta.icon_hl,
+      })
     end
   end
   for _, rows in pairs(by_cat) do
@@ -98,7 +106,12 @@ local function build_categories(opts, by_cat)
     for _, r in ipairs(opts.extra_rows) do
       local cat = r.cat or 'Other'
       by_cat[cat] = by_cat[cat] or {}
-      table.insert(by_cat[cat], { lhs = r.lhs, action = r.action, icon = r.icon or '' })
+      table.insert(by_cat[cat], {
+        lhs = r.lhs,
+        action = r.action,
+        icon = r.icon or '',
+        icon_hl = r.icon_hl,
+      })
       if not extra_cats_seen[cat] then
         extra_cats_seen[cat] = true
         extra_cats[#extra_cats + 1] = cat
@@ -150,9 +163,8 @@ local function render_content(opts, by_cat, cats)
   -- title
   local title_icon = opts.title_icon or ''
   local title_text = opts.title or 'keymaps'
-  local title = '  ' .. title_icon .. (title_icon ~= '' and '  ' or '') .. title_text
-  lines[#lines + 1] = title
-  add_hl(#lines - 1, 0, #title, 'VVHelpTitle')
+  local title_body = title_icon .. (title_icon ~= '' and '  ' or '') .. title_text
+  lines[#lines + 1] = title_body
   lines[#lines + 1] = ''
 
   for ci, cat in ipairs(cats) do
@@ -185,7 +197,7 @@ local function render_content(opts, by_cat, cats)
 
       lines[#lines + 1] = line
       local lnum = #lines - 1
-      if #icon > 0 then add_hl(lnum, icon_start, icon_end, 'VVHelpIcon') end
+      if #icon > 0 then add_hl(lnum, icon_start, icon_end, r.icon_hl or 'VVHelpIcon') end
       add_hl(lnum, key_start, key_end, 'VVHelpKey')
       add_hl(lnum, arrow_start, arrow_end, 'VVHelpArrow')
       add_hl(lnum, action_start, action_end, 'VVHelpAction')
@@ -205,10 +217,21 @@ local function render_content(opts, by_cat, cats)
     if w > max_w then max_w = w end
   end
 
+  -- 窗口比最长内容多留 4 列呼吸空间；标题按最终窗口内容宽度居中，正文仍左对齐
+  local width = max_w + 4
+  local title_pad = math.max(0, math.floor((width - vim.fn.strdisplaywidth(title_body)) / 2))
+  local title_prefix = string.rep(' ', title_pad) .. title_icon .. (title_icon ~= '' and '  ' or '')
+  lines[1] = title_prefix .. title_text
+
+  if title_icon ~= '' then
+    add_hl(0, title_pad, title_pad + #title_icon, opts.title_icon_hl or 'VVHelpTitle')
+  end
+  add_hl(0, #title_prefix, #lines[1], 'VVHelpTitle')
+
   return {
     lines = lines,
     highlights = hls,
-    width = max_w + 4,
+    width = width,
     first_action_line = 4,
   }
 end

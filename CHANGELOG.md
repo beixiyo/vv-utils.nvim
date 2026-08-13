@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.7 - 2026-08-12
+
+### Changed
+
+- **help_panel**：`actions` / `extra_rows` 支持可选的 `icon_hl`，标题图标支持可选的 `title_icon_hl`；未配置时分别继续使用 `VVHelpIcon` / `VVHelpTitle`，兼容现有调用方；标题根据最终浮窗内容宽度水平居中
+- **keys**：单字母大写键位展示为带 Shift 语义的 `⇧` 前缀，并与显式 `<S-...>` 写法保持一致
+
 ## 0.5.6 - 2026-08-10
 
 ### Added
