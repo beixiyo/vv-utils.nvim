@@ -4,6 +4,7 @@ local buffer = require('vv-utils.fs.buffer')
 local io = require('vv-utils.fs.io')
 local operations = require('vv-utils.fs.operations')
 local path = require('vv-utils.fs.path')
+local temp = require('vv-utils.fs.temp')
 local transaction = require('vv-utils.fs.transaction')
 
 return {
@@ -23,6 +24,7 @@ return {
   write_all = io.write_all,
   load_json = io.load_json,
   save_json = io.save_json,
+  temp = temp,
 
   sync_buffers = buffer.sync_buffers,
   new_transaction = transaction.new,

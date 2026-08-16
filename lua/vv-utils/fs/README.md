@@ -11,6 +11,7 @@
 | 路径 | `exists(path)`、`is_directory(path)`、`is_dir_empty(path)`、`realpath(path)`、`unique_dest(destination)` |
 | 文件操作 | `mkdir_p(directory)`、`create_file(file)`、`delete(target)`、`rename(source, destination)`、`copy(source, destination)` |
 | 内容 | `read_all(file)`、`write_all(file, content, opts?)`、`load_json(source, opts?)`、`save_json(file, data, opts?)` |
+| 临时文件 | `temp.write(content, opts?)`、`temp.create(opts?)`、`temp.cleanup(paths)` |
 | 编辑器 | `sync_buffers(old, new)`，把已打开的 buffer 与文件移动保持一致 |
 | 事务 | `new_transaction(opts)` |
 
@@ -25,6 +26,8 @@
 `file_probe` 基于内容判断，适合在展示或批量处理前跳过二进制文件；不是按扩展名猜测
 
 `write_all()` 的 `mode` 控制新文件权限，`directory_mode` 控制新建父目录权限；已有文件和目录保持原权限
+
+`temp.write()` 和 `temp.create()` 使用独占创建，默认权限为 `0600`；调用方持有返回路径，并用幂等的 `temp.cleanup()` 清理自己的文件
 
 `is_directory()` 跟随软链接；`is_dir_empty()` 只读取第一个目录成员，路径不是目录或无法读取时返回 `nil, error_message`
 

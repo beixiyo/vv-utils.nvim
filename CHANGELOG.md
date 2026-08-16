@@ -8,6 +8,8 @@
 - **process**：新增 `start(command, opts?, callback)`，统一 `vim.system` 启动失败、主循环投递、物理取消与取消后的回调压制
 - **archive**：新增跨平台 tar 归档列表与解压机制
 - **fs**：新增 `is_directory()`、`is_dir_empty()`；`write_all()` 支持通过 `directory_mode` 指定新建父目录权限
+- **fs**：新增 `temp.write()`、`temp.create()` 与 `temp.cleanup()`，统一受限临时文件的独占创建和幂等清理
+- **http**：新增安全的非流式 HTTP 请求、RFC 3986 query component 编码与 URL 参数拼接；支持超时、取消、状态码和响应头解析，并避免 URL、请求头及请求体进入进程参数
 
 ### Changed
 

@@ -16,6 +16,7 @@
 --   async       与业务无关的异步 request scope（逻辑失效 + 调用方资源清理协调）
 --   callback    回调执行次数限制与失效控制
 --   process     异步子进程启动、取消与主循环投递
+--   http        安全的非流式 HTTP 请求与 query component 编码
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   mouse       nofile 面板鼠标防护（block_visual_drag：禁拖拽/多击含跨窗口拖入进 visual）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
