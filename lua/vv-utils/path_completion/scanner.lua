@@ -3,6 +3,7 @@
 -- 只负责从文件系统或 fd 收集、过滤和排序原始路径，不生成 CompleteItem
 
 local Parser = require('vv-utils.path_completion.parser')
+local Process = require('vv-utils.process')
 
 local uv = vim.uv
 
@@ -273,7 +274,7 @@ function M.descendants_async(needle, parent, cwd, opts, callback)
 
   local cancelled = false
   local finished = false
-  local process
+  local process_cancel
   local timer = uv.new_timer()
 
   local function finish(matches)
@@ -283,16 +284,16 @@ function M.descendants_async(needle, parent, cwd, opts, callback)
     callback(matches)
   end
 
-  process = vim.system(
+  process_cancel = Process.start(
     descendant_args(needle, parent, opts),
     { cwd = cwd, text = false },
-    vim.schedule_wrap(function(result)
+    function(result)
       if result.code ~= 0 or not result.stdout then
         finish({})
       else
         finish(parse_descendants(result.stdout, opts))
       end
-    end)
+    end
   )
 
   if timer then
@@ -300,7 +301,7 @@ function M.descendants_async(needle, parent, cwd, opts, callback)
       if finished then return end
       cancelled = true
       close_timer(timer)
-      if process then pcall(process.kill, process, 15) end
+      if process_cancel then pcall(process_cancel) end
       callback({})
     end))
   end
@@ -309,7 +310,7 @@ function M.descendants_async(needle, parent, cwd, opts, callback)
     if cancelled or finished then return end
     cancelled = true
     close_timer(timer)
-    if process then pcall(process.kill, process, 15) end
+    if process_cancel then pcall(process_cancel) end
   end
 end
 

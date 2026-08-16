@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.8 - 2026-08-16
+
+### Added
+
+- **callback**：新增 `limit(callback, max_calls?)`，统一回调调用次数限制、返回值透传与幂等失效
+- **process**：新增 `start(command, opts?, callback)`，统一 `vim.system` 启动失败、主循环投递、物理取消与取消后的回调压制
+- **archive**：新增跨平台 tar 归档列表与解压机制
+- **fs**：新增 `is_directory()`、`is_dir_empty()`；`write_all()` 支持通过 `directory_mode` 指定新建父目录权限
+
+### Changed
+
+- **fs**：文件探测、信息渲染与目录扫描按职责拆分为 `file_probe`、`file_render`、`dir_scan`、`dir_render` 和 `file_info_highlight` 子模块
+- **git / path_completion / download**：统一复用 `vv-utils.process` 的进程启动与取消语义
+- **history**：持久化复用 `fs.write_all()` 的原子写入，并保持历史文件 `0600`、新建目录 `0700` 权限
+
+### Fixed
+
+- **download**：取消下载时即使 staging 文件暂时仍被进程占用，也会在底层进程退出后再次清理，避免 Windows 残留临时文件
+
 ## 0.5.7 - 2026-08-12
 
 ### Changed

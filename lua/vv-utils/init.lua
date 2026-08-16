@@ -14,10 +14,13 @@
 --   history     按字段隔离的输入历史（草稿恢复 + 可选 0600 原子持久化）
 --   state       按插件与功能 ID 隔离的通用 JSON 持久状态
 --   async       与业务无关的异步 request scope（逻辑失效 + 调用方资源清理协调）
+--   callback    回调执行次数限制与失效控制
+--   process     异步子进程启动、取消与主循环投递
 --   sys         系统集成（open_default 跨平台 + niri 焦点跟随）
 --   mouse       nofile 面板鼠标防护（block_visual_drag：禁拖拽/多击含跨窗口拖入进 visual）
 --   exec        按文件类型解析执行命令（shebang / 扩展名优先级，纯函数）
 --   download    跨平台文件下载（curl / wget / PowerShell 自动选择）
+--   archive     跨平台 tar 归档读取与安全解压（tar / bsdtar 自动选择）
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
 --   input       声明式输入字段装饰（label / placeholder extmark + key/action 标签）
 --   keys        Neovim 键位记号的紧凑展示（^ / ⌥ / ⇧ / ⌘ / ↵）

@@ -1,6 +1,8 @@
 ---跨平台文件下载：自动选择 curl、wget 或 PowerShell
 ---
 ---本模块只负责把 URL 下载到指定路径，不决定资源版本、安装目录或更新策略
+local Process = require('vv-utils.process')
+
 local M = {}
 local download_sequence = 0
 
@@ -126,7 +128,7 @@ end
 ---@return fun() cancel 停止下载并压制尚未投递的 callback，幂等
 function M.file(opts, callback)
   local state = 'active'
-  local process
+  local process_cancel
   local staging = next_staging_path(opts.destination)
   local function cleanup_staging()
     pcall(vim.uv.fs_unlink, staging)
@@ -135,7 +137,7 @@ function M.file(opts, callback)
   local function cancel()
     if state ~= 'active' then return end
     state = 'cancelled'
-    if process then pcall(process.kill, process, 15) end
+    if process_cancel then pcall(process_cancel) end
     cleanup_staging()
   end
 
@@ -161,54 +163,46 @@ function M.file(opts, callback)
   local system_opts = {
     text = true,
     env = downloader.env and downloader.env(opts.url, staging, retries) or nil,
+    on_raw_exit = function()
+      -- 交付 callback 会在取消后被 process 压制；raw exit 仍必须补做一次清理
+      if state == 'cancelled' then cleanup_staging() end
+    end,
   }
 
-  local started, process_or_error = pcall(vim.system, command, system_opts, function(completed)
-    vim.schedule(function()
-      if state == 'cancelled' then
-        cleanup_staging()
-        return
-      end
-
-      if completed.code == 0 then
-        local published, publish_error = vim.uv.fs_rename(staging, opts.destination)
-        if not published then
-          cleanup_staging()
-          finish({
-            ok = false,
-            code = 'publish_failed',
-            message = 'Failed to publish download: ' .. tostring(publish_error),
-            backend = downloader.name,
-          })
-          return
-        end
-        finish({ ok = true, backend = downloader.name })
-        return
-      end
-
+  local start_error
+  process_cancel, start_error = Process.start(command, system_opts, function(completed)
+    if state == 'cancelled' then
       cleanup_staging()
-      local detail = completed.stderr ~= '' and completed.stderr or completed.stdout
-      finish({
-        ok = false,
-        code = 'download_failed',
-        message = vim.trim(detail or ('exit code ' .. completed.code)),
-        backend = downloader.name,
-        exitCode = completed.code,
-      })
-    end)
-  end)
+      return
+    end
 
-  if not started then
+    if completed.code == 0 then
+      local published, publish_error = vim.uv.fs_rename(staging, opts.destination)
+      if not published then
+        cleanup_staging()
+        finish({
+          ok = false,
+          code = 'publish_failed',
+          message = 'Failed to publish download: ' .. tostring(publish_error),
+          backend = downloader.name,
+        })
+        return
+      end
+      finish({ ok = true, backend = downloader.name })
+      return
+    end
+
     cleanup_staging()
-    finish({
+    local detail = completed.stderr ~= '' and completed.stderr or completed.stdout
+    local failure = {
       ok = false,
       code = 'download_failed',
-      message = tostring(process_or_error),
+      message = vim.trim(detail or (start_error and tostring(start_error) or ('exit code ' .. completed.code))),
       backend = downloader.name,
-    })
-  else
-    process = process_or_error
-  end
+    }
+    if not start_error then failure.exitCode = completed.code end
+    finish(failure)
+  end)
   return cancel
 end
 

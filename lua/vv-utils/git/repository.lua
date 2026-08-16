@@ -1,7 +1,7 @@
 -- Git 仓库探测：识别工作目录类型并同步/异步查找仓库根
 
 local M = {}
-local Process = require('vv-utils.git.process')
+local Process = require('vv-utils.process')
 
 local uv = vim.uv or vim.loop
 

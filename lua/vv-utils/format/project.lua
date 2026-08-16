@@ -3,6 +3,7 @@
 -- 负责 Git 文件枚举、二进制过滤、文件读写和汇总通知
 
 local Fs = require('vv-utils.fs')
+local FileProbe = require('vv-utils.fs.file_probe')
 local Git = require('vv-utils.git')
 local Text = require('vv-utils.format.text')
 
@@ -30,7 +31,7 @@ function M.clean(opts, config)
     if relative_path ~= '' then
       local path = root .. '/' .. relative_path
       if vim.uv.fs_stat(path) then
-        local info = Fs.inspect_file(path)
+        local info = FileProbe.inspect(path)
         if not info.readable or info.binary then
           stat.skipped_binary = stat.skipped_binary + 1
         else

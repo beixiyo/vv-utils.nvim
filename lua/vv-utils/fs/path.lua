@@ -15,6 +15,26 @@ function M.exists(path)
   return uv.fs_lstat(path) ~= nil
 end
 
+---路径是否指向目录，跟随软链接
+---@param path string
+---@return boolean
+function M.is_directory(path)
+  local stat = uv.fs_stat(path)
+  return stat ~= nil and stat.type == 'directory'
+end
+
+---目录是否为空，只读取第一个成员
+---@param path string
+---@return boolean? empty
+---@return string? error_message 路径不是目录或无法读取时返回错误
+function M.is_dir_empty(path)
+  if not M.is_directory(path) then return nil, 'not a directory: ' .. path end
+
+  local handle, error_message = uv.fs_scandir(path)
+  if not handle then return nil, tostring(error_message) end
+  return uv.fs_scandir_next(handle) == nil
+end
+
 -- 把路径解析到真实路径。路径不存在时解析最长存在祖先，再拼回剩余路径段
 ---@param path string
 ---@return string

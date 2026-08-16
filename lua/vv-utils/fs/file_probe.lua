@@ -1,6 +1,6 @@
 -- 文件内容探测与元信息：小块读取识别二进制，不依赖平台外部命令
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local M = {}
 
@@ -177,45 +177,6 @@ end
 ---@return boolean
 function M.is_binary(path, opts)
   return M.inspect(path, opts).binary
-end
-
----@param size integer
----@return string
-function M.format_size(size)
-  if size < 1024 then return size .. ' B' end
-  if size < 1024 * 1024 then return ('%.1f KiB'):format(size / 1024) end
-  if size < 1024 * 1024 * 1024 then return ('%.1f MiB'):format(size / 1024 / 1024) end
-  return ('%.1f GiB'):format(size / 1024 / 1024 / 1024)
-end
-
-local format_size = M.format_size
-
----@class VVFsFileInfoLinesOptions
----@field display_path? string
----@field title? string @default 'Binary file'
-
----@param info VVFsFileInfo
----@param opts? VVFsFileInfoLinesOptions
----@return string[]
-function M.lines(info, opts)
-  opts = opts or {}
-  local lines = {
-    opts.title or 'Binary file',
-    '',
-    'Path: ' .. (opts.display_path or info.path),
-    'Type: ' .. info.kind,
-  }
-
-  if info.architecture then lines[#lines + 1] = 'Architecture: ' .. info.architecture end
-  if info.size then
-    lines[#lines + 1] = ('Size: %s (%d bytes)'):format(format_size(info.size), info.size)
-  end
-  lines[#lines + 1] = 'Executable: ' .. (info.executable and 'Yes' or 'No')
-  if info.modified then
-    lines[#lines + 1] = 'Modified: ' .. os.date('%Y-%m-%d %H:%M:%S', info.modified)
-  end
-
-  return lines
 end
 
 return M

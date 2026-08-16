@@ -1,7 +1,7 @@
 -- Git 状态索引：解析 porcelain 输出并异步读取 tracked、ignored 与工作树状态
 
 local M = {}
-local Process = require('vv-utils.git.process')
+local Process = require('vv-utils.process')
 
 local function norm(path) return vim.fs.normalize(path) end
 

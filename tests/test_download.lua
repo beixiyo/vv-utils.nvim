@@ -86,6 +86,7 @@ vim.system = original_system
 local original_resolve = Download.resolve
 local cancel_tmp = vim.fn.tempname()
 local started_path = vim.fs.joinpath(cancel_tmp, 'started')
+local exited_path = vim.fs.joinpath(cancel_tmp, 'exited')
 local destination = vim.fs.joinpath(cancel_tmp, 'download')
 vim.fn.mkdir(cancel_tmp, 'p')
 local cancel_staging
@@ -98,10 +99,16 @@ Download.resolve = function()
       return {
         '/bin/sh',
         '-c',
-        'printf "%s" "$$" > "$1"; printf partial > "$2"; exec sleep 10',
+        [[
+printf "%s" "$$" > "$1"
+printf partial > "$2"
+trap 'printf exited > "$3"; exit 143' TERM
+while :; do sleep 0.05; done
+]],
         '_',
         started_path,
         target,
+        exited_path,
       }
     end,
   }
@@ -120,14 +127,32 @@ assert(vim.wait(1000, function() return vim.uv.fs_stat(started_path) ~= nil end)
 local pid = tonumber(table.concat(vim.fn.readfile(started_path), ''))
 assert(vim.wait(1000, function() return vim.uv.fs_stat(cancel_staging) ~= nil end),
   'fixture downloader did not create its staging file before cancellation')
+local original_unlink = vim.uv.fs_unlink
+local unlink_attempts = 0
+local first_unlink_blocked = true
+local cleanup_before_raw_exit = false
+vim.uv.fs_unlink = function(path)
+  if path == cancel_staging then
+    unlink_attempts = unlink_attempts + 1
+    if first_unlink_blocked then
+      first_unlink_blocked = false
+      return nil, 'EBUSY'
+    end
+    if not vim.uv.fs_stat(exited_path) then cleanup_before_raw_exit = true end
+  end
+  return original_unlink(path)
+end
 cancel()
 cancel()
 assert(vim.wait(1000, function() return vim.uv.kill(pid, 0) == nil end),
   'cancel must stop the real vim.system process')
-vim.wait(50)
+assert(vim.wait(1000, function() return vim.uv.fs_stat(cancel_staging) == nil end),
+  'raw exit 后必须再次清理取消下载的 staging 文件')
 assert(callback_count == 0, 'cancelled downloads must suppress their callback')
 assert(vim.uv.fs_stat(destination) == nil, 'cancelled download must not publish a partial destination')
-assert(vim.uv.fs_stat(cancel_staging) == nil, 'cancel must remove its staging file')
+assert(unlink_attempts >= 2 and not cleanup_before_raw_exit,
+  '取消时首次清理失败后，必须在 raw exit 之后重试清理')
+vim.uv.fs_unlink = original_unlink
 
 local completed_destination = vim.fs.joinpath(cancel_tmp, 'completed-download')
 vim.fn.writefile({ 'previous' }, completed_destination)

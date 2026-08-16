@@ -247,32 +247,33 @@ end)
 
 -- 5. fs 原子写入
 test('fs: write_all 原子写入', function()
-  package.loaded['vv-utils.fs'] = nil
-  local fs = require('vv-utils.fs')
+  local fs_io = require('vv-utils.fs.io')
+  local fs_operations = require('vv-utils.fs.operations')
+  local fs_path = require('vv-utils.fs.path')
   local tmp_dir = vim.fn.tempname()
   vim.fn.mkdir(tmp_dir, 'p')
   local test_path = tmp_dir .. '/atomic_test.txt'
 
-  fs.write_all(test_path, 'hello atomic')
-  local content = fs.read_all(test_path)
+  fs_io.write_all(test_path, 'hello atomic')
+  local content = fs_io.read_all(test_path)
   assert(content == 'hello atomic', '内容不匹配: ' .. content)
-  assert(not fs.exists(test_path .. '.tmp'), '不应残留 .tmp 文件')
+  assert(not fs_path.exists(test_path .. '.tmp'), '不应残留 .tmp 文件')
 
   -- 覆盖写入需保留已有文件权限（尤其脚本可执行位）
   assert(vim.uv.fs_chmod(test_path, 511)) -- 0o777，验证显式 chmod 不受 umask 影响
-  fs.write_all(test_path, 'overwritten')
-  local content2 = fs.read_all(test_path)
+  fs_io.write_all(test_path, 'overwritten')
+  local content2 = fs_io.read_all(test_path)
   assert(content2 == 'overwritten', '覆盖写入内容不匹配: ' .. content2)
   local stat = assert(vim.uv.fs_stat(test_path))
   assert(stat.mode % 4096 == 511, '覆盖写入后应保留 0o777，实际: ' .. tostring(stat.mode % 4096))
 
   local target_path = tmp_dir .. '/target.txt'
   local link_path = tmp_dir .. '/link.txt'
-  fs.write_all(target_path, 'before')
+  fs_io.write_all(target_path, 'before')
   assert(vim.uv.fs_symlink('target.txt', link_path))
-  fs.write_all(link_path, 'after')
+  fs_io.write_all(link_path, 'after')
   assert(assert(vim.uv.fs_lstat(link_path)).type == 'link', '覆盖写入不应替换 symlink 本身')
-  assert(fs.read_all(target_path) == 'after', '覆盖 symlink 应写入真实目标')
+  assert(fs_io.read_all(target_path) == 'after', '覆盖 symlink 应写入真实目标')
 
   local scan = assert(vim.uv.fs_scandir(tmp_dir))
   while true do
@@ -281,7 +282,7 @@ test('fs: write_all 原子写入', function()
     assert(not name:match('%.tmp%.'), '不应残留唯一临时文件: ' .. name)
   end
 
-  fs.delete(tmp_dir)
+  fs_operations.delete(tmp_dir)
 end)
 
 -- 6. sys.open_default

@@ -39,6 +39,7 @@ end
 -- 同目录临时文件完整写入、fsync 后 rename 覆盖目标
 ---@class VVFsWriteOptions
 ---@field mode? integer  新文件权限；已有文件默认保留原权限 @default nil
+---@field directory_mode? integer  新建父目录权限；已有目录默认保留原权限 @default 0755
 
 ---@param file string
 ---@param content string
@@ -46,12 +47,32 @@ end
 function M.write_all(file, content, opts)
   file = norm(file)
   local link = uv.fs_lstat(file)
+
   if link and link.type == 'link' then
     local real, real_error = uv.fs_realpath(file)
     if not real then error('resolve symlink failed: ' .. file .. ' — ' .. tostring(real_error)) end
     file = norm(real)
   end
-  operations.mkdir_p(dirname(file))
+
+  local directory = dirname(file)
+  local directory_mode = opts and opts.directory_mode
+
+  if directory_mode ~= nil then
+    local function mkdir_p(target)
+      target = norm(target)
+      if path.exists(target) then return end
+
+      mkdir_p(dirname(target))
+      local created, mkdir_error = uv.fs_mkdir(target, directory_mode)
+      if not created and mkdir_error and not mkdir_error:match('EEXIST') then
+        error('mkdir failed: ' .. target .. ' — ' .. mkdir_error)
+      end
+    end
+
+    mkdir_p(directory)
+  else
+    operations.mkdir_p(directory)
+  end
 
   local existing = uv.fs_stat(file)
   local mode = opts and opts.mode or existing and (existing.mode % 4096) or 420

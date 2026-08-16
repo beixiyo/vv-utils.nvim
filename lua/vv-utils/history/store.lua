@@ -4,6 +4,7 @@
 -- 不提供进程间锁；并发写入只在每次落盘前尽量吸收当时可见的最新记录
 
 local Data = require('vv-utils.history.data')
+local Fs = require('vv-utils.fs')
 
 local M = {}
 
@@ -73,51 +74,14 @@ end
 ---@param self vv-utils.history.Store
 ---@param content string
 ---@return boolean
-local function write_atomic(self, content)
-  local directory = vim.fs.dirname(self.path)
-  vim.fn.mkdir(directory, 'p', 448) -- 0700
-
-  local temporary = table.concat({
-    self.path,
-    'tmp',
-    tostring(vim.uv.os_getpid()),
-    tostring(vim.uv.hrtime()),
-  }, '.')
-  local fd, open_error = vim.uv.fs_open(temporary, 'wx', 384) -- 0600，拒绝跟随既有临时软链
-  if not fd then
-    warn(self, 'Failed to create the history temporary file: ' .. tostring(open_error))
-    return false
-  end
-
-  local offset = 0
-  local write_error = nil
-  while offset < #content do
-    local written, current_error = vim.uv.fs_write(fd, content:sub(offset + 1), offset)
-    if not written or written == 0 then
-      write_error = current_error or 'short write'
-      break
-    end
-    offset = offset + written
-  end
-
-  local synced, sync_error = nil, nil
-  if not write_error then synced, sync_error = vim.uv.fs_fsync(fd) end
-  vim.uv.fs_close(fd)
-
-  if write_error or not synced then
-    pcall(vim.uv.fs_unlink, temporary)
-    warn(self, 'Failed to write history: ' .. tostring(write_error or sync_error))
-    return false
-  end
-
-  local renamed, rename_error = vim.uv.fs_rename(temporary, self.path)
-  if not renamed then
-    pcall(vim.uv.fs_unlink, temporary)
-    warn(self, 'Failed to save history: ' .. tostring(rename_error))
-    return false
-  end
-
-  return true
+local function write_history(self, content)
+  local ok, write_error = pcall(Fs.write_all, self.path, content, {
+    mode = 384, -- 0600
+    directory_mode = 448, -- 0700
+  })
+  if ok then return true end
+  warn(self, 'Failed to save history: ' .. tostring(write_error))
+  return false
 end
 
 ---@param opts vv-utils.history.StoreOpts
@@ -158,7 +122,7 @@ function Store:save(fallback_fields, records)
     return nil
   end
 
-  if not write_atomic(self, encoded .. '\n') then return nil end
+  if not write_history(self, encoded .. '\n') then return nil end
   return fields
 end
 

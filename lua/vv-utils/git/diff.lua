@@ -3,7 +3,7 @@
 local M = {}
 
 local repository = require('vv-utils.git.repository')
-local Process = require('vv-utils.git.process')
+local Process = require('vv-utils.process')
 
 local function norm(path) return vim.fs.normalize(path) end
 
