@@ -2,13 +2,18 @@
 
 local M = {}
 
+local function normalized_lhs(lhs)
+  return vim.fn.keytrans(vim.keycode(lhs))
+end
+
 function M.key(mode, lhs)
-  return mode .. '\0' .. lhs
+  return mode .. '\0' .. normalized_lhs(lhs)
 end
 
 function M.get(buf, mode, lhs)
+  local target = normalized_lhs(lhs)
   for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, mode)) do
-    if map.lhs == lhs then return map end
+    if normalized_lhs(map.lhs) == target then return map end
   end
 end
 

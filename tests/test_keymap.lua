@@ -21,6 +21,13 @@ local function map_desc(buf)
   end
 end
 
+local function map_desc_by_lhs(buf, lhs)
+  local target = vim.fn.keytrans(vim.keycode(lhs))
+  for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, 'n')) do
+    if vim.fn.keytrans(vim.keycode(map.lhs)) == target then return map.desc end
+  end
+end
+
 local function set_filetype(buf, filetype)
   vim.api.nvim_buf_call(buf, function()
     vim.cmd('set filetype=' .. filetype)
@@ -60,6 +67,20 @@ test('外部重绑优先于之后的自动解绑', function()
   set_filetype(buf, 'text')
   assert(map_desc(buf) == 'external gf')
   handle:detach()
+  vim.api.nvim_buf_delete(buf, { force = true })
+end)
+
+test('控制键标准化后仍会在 detach 时归还映射', function()
+  local buf = vim.api.nvim_create_buf(false, true)
+  local handle = Keymap.attach({
+    id = 'test.keymap.control-key',
+    when = function(context) return context.buf == buf end,
+    mappings = { { mode = 'n', lhs = '<C-e>', rhs = function() end, opts = { desc = 'owned C-e' } } },
+  })
+
+  assert(map_desc_by_lhs(buf, '<C-e>') == 'owned C-e')
+  handle:detach()
+  assert(map_desc_by_lhs(buf, '<C-e>') == nil)
   vim.api.nvim_buf_delete(buf, { force = true })
 end)
 
