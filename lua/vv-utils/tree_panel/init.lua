@@ -7,6 +7,7 @@ local Lifecycle = require('vv-utils.tree_panel.lifecycle')
 local Model = require('vv-utils.tree_panel.model')
 local Renderer = require('vv-utils.tree_panel.renderer')
 local Syntax = require('vv-utils.tree_panel.syntax')
+local Toolbar = require('vv-utils.tree_panel.toolbar')
 
 local M = {}
 require('vv-utils.tree_panel.types')
@@ -28,6 +29,10 @@ require('vv-utils.tree_panel.types')
 ---@field current_width? integer
 ---@field saved_width? integer
 ---@field lifecycle_group? integer
+---@field toolbar_win? integer
+---@field toolbar_buf? integer
+---@field toolbar_ns? integer
+---@field toolbar_group? integer
 local Panel = {}
 Panel.__index = Panel
 local actions
@@ -150,6 +155,8 @@ end
 
 function Panel:render()
   if not self.buf or not vim.api.nvim_buf_is_valid(self.buf) then return end
+
+  Toolbar.render(self)
 
   local cursor_line
   local cursor_id

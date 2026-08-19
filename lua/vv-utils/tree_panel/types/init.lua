@@ -47,6 +47,20 @@
 ---@field empty? fun(ctx: VVTreePanelRenderContext): (VVTreePanelRenderRow|string)?
 ---@field footer? fun(ctx: VVTreePanelRenderContext): (VVTreePanelRenderRow|string)?
 
+---@class VVTreePanelToolbarItem
+---@field key string  Neovim 键位记号，例如 '<CR>'、'<C-s>'
+---@field label string
+---@field key_hl? string
+---@field label_hl? string
+
+---@class VVTreePanelToolbarOptions
+---@field items VVTreePanelToolbarItem[]|fun(ctx: VVTreePanelRenderContext): VVTreePanelToolbarItem[]
+---@field filetype? string @default 'vv-tree-panel-toolbar'
+---@field padding? integer @default 1
+---@field separator? string @default '  '
+---@field key_hl? string @default 'Special'
+---@field label_hl? string @default 'Comment'
+
 ---@class VVTreePanelNode
 ---@field id string
 ---@field label? string
@@ -92,6 +106,7 @@
 ---@field on_attach? fun(panel: VVTreePanel, buf: integer)  buffer 配置入口；快捷键由调用方在此注册
 ---@field source fun(ctx: VVTreePanelRenderContext): VVTreePanelNode[]
 ---@field render? VVTreePanelRenderers
+---@field toolbar? VVTreePanelToolbarOptions  固定多行工具栏；按宽度完整换行，正文独立滚动
 ---@field preview? fun(node: VVTreePanelNode, ctx: VVTreePanelRenderContext)
 ---@field open? fun(node: VVTreePanelNode, ctx: VVTreePanelRenderContext)  打开节点但保留 panel
 ---@field jump? fun(node: VVTreePanelNode, ctx: VVTreePanelRenderContext)

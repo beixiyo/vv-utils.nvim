@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.10 - 2026-08-19
+
+### Added
+
+- **tree_panel**：新增声明式固定多行 toolbar
+
 ## 0.5.9 - 2026-08-18
 
 ### Fixed

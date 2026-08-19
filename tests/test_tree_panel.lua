@@ -181,7 +181,10 @@ local jumped
 local behavior_panel = TreePanel.new({
   id = 'test-behavior',
   title = 'Behavior',
-  on_attach = function(current) TreePanel.apply_default_mappings(current) end,
+  on_attach = function(current)
+    TreePanel.apply_default_mappings(current)
+    vim.wo[current.win].winhighlight = 'Normal:NormalFloat,CursorLine:Visual'
+  end,
   source = function()
     return {
       {
@@ -199,6 +202,14 @@ local behavior_panel = TreePanel.new({
   end,
   open = function(node) opened = node.id end,
   jump = function(node) jumped = node.id end,
+  toolbar = {
+    items = {
+      { label = 'Open', key = '<CR>' },
+      { label = 'Filter', key = '/' },
+      { label = 'Copy all', key = 'C' },
+      { label = 'Delete all', key = 'D' },
+    },
+  },
   render = {
     winbar = function()
       return {
@@ -223,6 +234,25 @@ local behavior_panel = TreePanel.new({
   },
 })
 behavior_panel:open()
+assert(behavior_panel.toolbar_win and vim.api.nvim_win_is_valid(behavior_panel.toolbar_win)
+    and behavior_panel.toolbar_buf and vim.api.nvim_buf_is_valid(behavior_panel.toolbar_buf),
+  'toolbar 应使用独立窗口，不占用或覆盖正文 buffer')
+assert(vim.wo[behavior_panel.toolbar_win].fillchars:find('horiz: ', 1, true)
+    and vim.wo[behavior_panel.toolbar_win].winhighlight:find('Normal:NormalFloat', 1, true)
+    and vim.wo[behavior_panel.toolbar_win].winhighlight:find('StatusLine:NormalFloat', 1, true),
+  'toolbar 应继承正文背景，且不绘制额外分割线或状态栏底色')
+vim.api.nvim_win_set_width(behavior_panel.win, 24)
+vim.api.nvim_exec_autocmds('WinResized', {})
+local toolbar_lines = vim.api.nvim_buf_get_lines(behavior_panel.toolbar_buf, 0, -1, false)
+assert(#toolbar_lines > 1
+    and table.concat(toolbar_lines, '\n'):find('Open ↵', 1, true)
+    and table.concat(toolbar_lines, '\n'):find('Delete all ⇧D', 1, true),
+  'toolbar 宽度不足时应完整换成多行，不得删减快捷键')
+assert(vim.api.nvim_get_current_win() == behavior_panel.win,
+  'toolbar resize 重排不应抢走正文焦点')
+vim.api.nvim_set_current_win(behavior_panel.toolbar_win)
+assert(vim.wait(100, function() return vim.api.nvim_get_current_win() == behavior_panel.win end),
+  '点击或进入 toolbar 后应自动把焦点还给正文面板')
 local fixed_winbar = vim.wo[behavior_panel.win].winbar
 assert(fixed_winbar:find('Fixed 100%%', 1, true)
     and fixed_winbar:find('%#Comment#', 1, true)
@@ -279,6 +309,8 @@ assert(opened == 'leaf' and behavior_panel:is_open(),
 behavior_panel:execute('jump')
 assert(jumped == 'leaf' and not behavior_panel:is_open(),
   'gf 的 jump 应进入叶节点并关闭 panel')
+assert(not behavior_panel.toolbar_win and not behavior_panel.toolbar_buf,
+  '关闭 panel 应同步释放 toolbar 窗口与 buffer')
 
 local original_notify = vim.notify
 local close_error

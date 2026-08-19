@@ -30,4 +30,6 @@ panel:toggle()
 
 `apply_mappings(panel, mappings, opts?)` 只安装显式动作表。`apply_default_mappings(panel, overrides?, opts?)` 才安装通用键位：`j`/`k`/`C-n`/`C-p` 预览移动、`h`/`l` 树导航、`Enter` 打开、`gf` 打开后关闭、`g?` 帮助。`syntax_chunks(text, lang, fallback_hl?)` 为独立文本生成 Tree-sitter chunks
 
+`toolbar.items` 声明固定快捷键提示。TreePanel 使用独立工具栏窗口按当前宽度完整换行，工具栏不覆盖正文且不随正文滚动；`key` 使用 Neovim 键位记号并统一由 `vv-utils.keys` 格式化。可通过 `padding`、`separator`、`key_hl` 与 `label_hl` 调整展示
+
 渲染完全由 `render.header`、`node`、`empty`、`footer`、`winbar` 决定，均可返回纯文本或高亮 chunks；`winbar = false` 清空固定顶部栏。模块本身不强加 keymap，也不拥有节点数据

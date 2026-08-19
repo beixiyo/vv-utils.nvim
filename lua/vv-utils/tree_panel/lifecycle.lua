@@ -2,12 +2,14 @@
 
 local Preview = require('vv-utils.tree_panel.preview')
 local Timer = require('vv-utils.timer')
+local Toolbar = require('vv-utils.tree_panel.toolbar')
 local UIWindow = require('vv-utils.ui_window')
 
 local M = {}
 
 ---@param panel VVTreePanel
 local function release(panel)
+  Toolbar.close(panel)
   if panel.cancel_preview then panel.cancel_preview() end
   if panel.cancel_width_save then panel.cancel_width_save() end
   if panel.lifecycle_group then pcall(vim.api.nvim_del_augroup_by_id, panel.lifecycle_group) end
@@ -79,28 +81,34 @@ function M.open(panel)
   vim.wo[panel.win].winhighlight = 'Normal:Normal,CursorLine:Visual'
 
   if panel.opts.on_attach then panel.opts.on_attach(panel, panel.buf) end
+  Toolbar.open(panel)
   panel:render()
 
   panel.lifecycle_group = vim.api.nvim_create_augroup(
     ('VVTreePanelLifecycle%d'):format(panel.buf),
     { clear = true }
   )
+
   vim.api.nvim_create_autocmd('CursorMoved', {
     group = panel.lifecycle_group,
     buffer = panel.buf,
     callback = function() panel.preview_cursor() end,
   })
+
   vim.api.nvim_create_autocmd('WinResized', {
     group = panel.lifecycle_group,
     callback = function()
       panel:_remember_width()
+      Toolbar.render(panel)
       if panel.save_width_debounced then panel.save_width_debounced() end
     end,
   })
+
   vim.api.nvim_create_autocmd('VimLeavePre', {
     group = panel.lifecycle_group,
     callback = function() panel:_save_width() end,
   })
+
   vim.api.nvim_create_autocmd('BufWipeout', {
     group = panel.lifecycle_group,
     buffer = panel.buf,
