@@ -218,13 +218,12 @@ end
 ---@return string?
 local function index_stage_path(root, path)
   local normalized = norm(path)
-  local relative = normalized
-  if vim.fs.abspath(normalized) == normalized then
-    -- root 来自 `rev-parse --show-toplevel` 时已是 realpath，而调用方的绝对路径可能经过符号链接
-    relative = vim.fs.relpath(root, normalized)
-      or vim.fs.relpath(vim.uv.fs_realpath(root) or root, vim.uv.fs_realpath(normalized) or normalized)
-    if not relative then return nil end
-  end
+  if vim.fs.abspath(normalized) ~= normalized then return './' .. normalized end
+
+  -- root 来自 `rev-parse --show-toplevel` 时已是 realpath，而调用方的绝对路径可能经过符号链接
+  local relative = vim.fs.relpath(root, normalized)
+    or vim.fs.relpath(vim.uv.fs_realpath(root) or root, vim.uv.fs_realpath(normalized) or normalized)
+  if not relative then return nil end
   return './' .. relative
 end
 
