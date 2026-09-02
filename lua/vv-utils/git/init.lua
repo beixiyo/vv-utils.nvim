@@ -1,6 +1,7 @@
 -- Git 领域 facade：聚合仓库、状态、差异与装饰能力
 
 local decorations = require('vv-utils.git.decorations')
+local conflicts = require('vv-utils.git.conflicts')
 local diff = require('vv-utils.git.diff')
 local repository = require('vv-utils.git.repository')
 local status = require('vv-utils.git.status')
@@ -16,6 +17,9 @@ return {
   tracked = status.tracked,
   index = status.index,
   ignored_entries = status.ignored_entries,
+
+  is_conflict = conflicts.is_conflict,
+  parse_conflict_hunks = conflicts.parse_conflict_hunks,
 
   parse_diff_lines = diff.parse_diff_lines,
   parse_diff_hunks = diff.parse_diff_hunks,

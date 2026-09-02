@@ -10,6 +10,8 @@
 
 `tracked(root, cb, opts?)`、`index(root, cb, opts?)`、`ignored_entries(root, cb, opts?)` 都是异步接口。`index` 回传状态映射、忽略路径、`is_ignored` 函数及 `rename_map`；`parse_porcelain_z(data, root)` 与 `make_is_ignored(files, dirs)` 是可独立复用的纯解析工具
 
+`is_conflict(xy)` 统一识别 porcelain 的七种 unmerged 状态。`parse_conflict_hunks(lines)` 解析普通、diff3 与 zdiff3 工作区冲突标记，返回 1-based 的 `start_line`、可选 `base_line`、`separator_line` 与 `end_line`；它是纯函数，不读取 buffer 或维护 UI 状态
+
 ## 行级 diff
 
 ```lua
@@ -18,7 +20,7 @@ local cancel = require('vv-utils.git').diff_lines(path, function(markers)
 end, { from_rev = 'HEAD', to_rev = nil, side = 'new' })
 ```
 
-`diff_lines(path, cb, opts?)` 获取单侧标记，`from_rev` / `to_rev` 可以指定任意 revision 范围，`side` 选择旧侧或新侧。`diff_line_sets(path, cb, opts?)` 同时获取 staged 与 unstaged，并把 staged 坐标映射至 worktree。`parse_diff_lines`、`parse_diff_hunks`、`map_index_markers` 可用于更底层的纯解析
+`diff_lines(path, cb, opts?)` 获取单侧标记，`from_rev` / `to_rev` 可以指定任意 revision 范围；成对的 `from_index_stage` / `to_index_stage` 可以比较同一路径的 index stage（例如冲突时的 ours `2` 与 theirs `3`），path 须相对 `root` 或位于 `root` 之下，任一 stage 不存在时回调 `nil`；`side` 选择旧侧或新侧。`diff_line_sets(path, cb, opts?)` 同时获取 staged 与 unstaged，并把 staged 坐标映射至 worktree。`parse_diff_lines`、`parse_diff_hunks`、`map_index_markers` 可用于更底层的纯解析
 
 ## 装饰与边界
 

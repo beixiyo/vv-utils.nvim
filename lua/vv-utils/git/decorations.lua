@@ -1,6 +1,7 @@
 -- Git 状态装饰：共享高亮与 porcelain 状态符号
 
 local M = {}
+local conflicts = require('vv-utils.git.conflicts')
 
 -- VSCode Dark+ gitDecoration.* 调色板（所有 git 状态色的单一真相来源）
 -- 通过 M.register_hl() 批量注册，vv-explorer / vv-git / 其它 vendor 统一 link 过来
@@ -43,15 +44,13 @@ local SYMBOLS = {
   [' R'] = { glyph = 'R', hl = 'VVGitRenamed' },
   ['C '] = { glyph = 'C', hl = 'VVGitRenamed' }, -- copied，VSCode 视觉同 renamed
   [' C'] = { glyph = 'C', hl = 'VVGitRenamed' },
-  ['UU'] = { glyph = '!', hl = 'VVGitConflict' },
-  ['AA'] = { glyph = '!', hl = 'VVGitConflict' },
-  ['DD'] = { glyph = '!', hl = 'VVGitConflict' },
 }
 
 ---@param xy string?
 ---@return {glyph:string, hl:string}?
 function M.symbol_for(xy)
   if not xy then return nil end
+  if conflicts.is_conflict(xy) then return { glyph = '!', hl = 'VVGitConflict' } end
   return SYMBOLS[xy] or { glyph = 'M', hl = 'VVGitModified' }
 end
 

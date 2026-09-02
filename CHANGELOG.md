@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.11 - 2026-09-02
+
+### Added
+
+- **git 冲突原语**：新增七种 porcelain unmerged 状态识别，以及普通、diff3、zdiff3 冲突块的纯解析 API
+- **index stage diff**：`diff_lines` 支持成对比较同一路径的 index stage，并将行号投影到指定一侧；path 相对 `root` 解析，位于 `root` 下的绝对路径自动换算，任一 stage 不存在时回调 `nil`
+
+### Changed
+
+- **冲突标记严格匹配**：只识别恰好七个标记字符且后接行尾或空格的行，`<<<<<<<<<<<<` 类分隔横幅与紧跟文本的行不再被当作冲突块
+
 ## 0.5.10 - 2026-08-19
 
 ### Added

@@ -211,6 +211,23 @@ function M.diff_line_sets(path, cb, opts)
   return cancel
 end
 
+-- `:N:path` 默认相对仓库 toplevel；加 `./` 前缀后改为相对 `-C root` 的 cwd，
+-- 与 pathspec 分支的 `-- path` 语义一致。绝对路径先换算到 root 下，不在 root 下则无法定位 index 条目
+---@param root string
+---@param path string
+---@return string?
+local function index_stage_path(root, path)
+  local normalized = norm(path)
+  local relative = normalized
+  if vim.fs.abspath(normalized) == normalized then
+    -- root 来自 `rev-parse --show-toplevel` 时已是 realpath，而调用方的绝对路径可能经过符号链接
+    relative = vim.fs.relpath(root, normalized)
+      or vim.fs.relpath(vim.uv.fs_realpath(root) or root, vim.uv.fs_realpath(normalized) or normalized)
+    if not relative then return nil end
+  end
+  return './' .. relative
+end
+
 ---异步获取文件的行级 git diff 标记
 ---@param path string
 ---@param cb fun(markers: table<integer, 'A'|'C'|'D'>?)
@@ -235,18 +252,41 @@ function M.diff_lines(path, cb, opts)
   end
 
   local mode = opts.mode or 'worktree'
+  local from_index_stage = opts.from_index_stage
+  local to_index_stage = opts.to_index_stage
+  local has_index_stages = from_index_stage ~= nil or to_index_stage ~= nil
+
+  local valid_index_stages = type(from_index_stage) == 'number'
+    and from_index_stage >= 1 and from_index_stage <= 3
+    and from_index_stage % 1 == 0
+    and type(to_index_stage) == 'number'
+    and to_index_stage >= 1 and to_index_stage <= 3
+    and to_index_stage % 1 == 0
+
+  if has_index_stages and not valid_index_stages then
+    cb(nil)
+    return function() end
+  end
+
   local function run(root)
     if cancelled then return end
     if not root then cb(nil); return end
 
     local cmd = { 'git', '-C', root, '--no-pager', 'diff' }
-    if opts.from_rev then
+    if has_index_stages then
+      local stage_path = index_stage_path(root, path)
+      if not stage_path then cb(nil); return end
+      cmd[#cmd + 1] = (':%d:%s'):format(from_index_stage, stage_path)
+      cmd[#cmd + 1] = (':%d:%s'):format(to_index_stage, stage_path)
+    elseif opts.from_rev then
       cmd[#cmd + 1] = opts.from_rev
       if opts.to_rev then cmd[#cmd + 1] = opts.to_rev end
     elseif mode == 'staged' then
       cmd[#cmd + 1] = '--cached'
     end
-    vim.list_extend(cmd, { '-U0', '--no-color', '--no-ext-diff', '--', path })
+
+    vim.list_extend(cmd, { '-U0', '--no-color', '--no-ext-diff' })
+    if not has_index_stages then vim.list_extend(cmd, { '--', path }) end
 
     cancel_process = Process.start(cmd, { text = true }, function(res)
       if res.code ~= 0 then
@@ -280,6 +320,8 @@ end
 ---@field mode? 'worktree'|'staged'  比较工作树与 index，或比较 index 与 HEAD @default 'worktree'
 ---@field from_rev? string 任意 revision 比较的旧侧；提供后忽略 mode
 ---@field to_rev? string 任意 revision 比较的新侧；省略时与工作树比较
+---@field from_index_stage? 1|2|3 同一路径 index stage 比较的旧侧；必须与 to_index_stage 成对提供并优先于 revision。path 须相对 root 或位于 root 下；任一 stage 不存在时回调 nil
+---@field to_index_stage? 1|2|3 同一路径 index stage 比较的新侧；必须与 from_index_stage 成对提供
 ---@field side? 'new'|'old'  将 hunk 行号投影到新侧或旧侧 @default 'new'
 
 ---@class vv-utils.git.DiffSource: vv-utils.git.DiffLinesOpts

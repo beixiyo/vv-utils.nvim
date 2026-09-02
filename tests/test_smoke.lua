@@ -105,7 +105,57 @@ test('hl: register_dimmed 向目标背景降低前景对比度', function()
   end), 'ColorScheme 后未等待来源高亮恢复再派生')
 end)
 
--- 3. Git 行级 diff 解析
+-- 3. Git 冲突与行级 diff 解析
+test('git: 统一识别 unmerged 状态并解析完整冲突块', function()
+  package.loaded['vv-utils.git'] = nil
+  local git = require('vv-utils.git')
+
+  for _, xy in ipairs({ 'DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU' }) do
+    assert(git.is_conflict(xy), xy .. ' 应识别为冲突状态')
+    local symbol = git.symbol_for(xy)
+    assert(symbol.glyph == '!' and symbol.hl == 'VVGitConflict', xy .. ' 未使用共享冲突装饰')
+  end
+  for _, xy in ipairs({ 'M ', ' M', 'AM', '??' }) do
+    assert(not git.is_conflict(xy), xy .. ' 不应识别为冲突状态')
+  end
+
+  local hunks = git.parse_conflict_hunks({
+    'before',
+    '<<<<<<< ours',
+    'ordinary ours',
+    '=======',
+    'ordinary theirs',
+    '>>>>>>> theirs',
+    'middle',
+    '<<<<<<< ours',
+    'diff3 ours',
+    '||||||| base',
+    'base content',
+    '=======',
+    'diff3 theirs',
+    '>>>>>>> theirs',
+    'after',
+  })
+
+  assert(#hunks == 2, '应解析普通与 diff3/zdiff3 两个完整冲突块')
+  assert(hunks[1].start_line == 2 and hunks[1].base_line == nil
+      and hunks[1].separator_line == 4 and hunks[1].end_line == 6,
+    '普通冲突块坐标错误')
+  assert(hunks[2].start_line == 8 and hunks[2].base_line == 10
+      and hunks[2].separator_line == 12 and hunks[2].end_line == 14,
+    'diff3/zdiff3 冲突块坐标错误')
+  assert(#git.parse_conflict_hunks({ '<<<<<<< ours', 'unfinished' }) == 0,
+    '不完整冲突块不应发布')
+  assert(#git.parse_conflict_hunks({
+    '<<<<<<<<<<<<<<<< banner', 'log', '======== section', 'more', '>>>>>>>>>>>>>>>> end',
+  }) == 0, '超过七个标记字符的分隔横幅不是 Git 冲突标记')
+  assert(#git.parse_conflict_hunks({
+    '<<<<<<<x', 'a', '=======y', 'b', '>>>>>>>z',
+  }) == 0, '七个标记字符后紧跟非空格的文本不是 Git 冲突标记')
+  assert(#git.parse_conflict_hunks({ '<<<<<<<', 'a', '=======', 'b', '>>>>>>>' }) == 1,
+    '无标签的裸冲突标记仍应识别')
+end)
+
 test('git: parse_diff_lines 行级 A/C/D', function()
   package.loaded['vv-utils.git'] = nil
   local git = require('vv-utils.git')
@@ -140,7 +190,7 @@ test('git: highlight_specs 返回不污染静态基准的副本', function()
   assert(second.VVGitAdded.bold == nil, '调用方属性不能残留到后续基准')
 end)
 
-test('git: diff_lines 支持 worktree、staged 与任意 revision source', function()
+test('git: diff_lines 支持 worktree、staged、revision 与 index stage source', function()
   local git = require('vv-utils.git')
   local tmp_dir = vim.fn.tempname()
   vim.fn.mkdir(tmp_dir, 'p')
@@ -197,6 +247,39 @@ test('git: diff_lines 支持 worktree、staged 与任意 revision source', funct
   assert(revision_new[3] == 'A', 'revision source 应把新增行投影到新侧')
   assert(revision_old[1] == 'D' and revision_old[2] == 'D',
     'revision source 应把删除行投影到旧侧')
+
+  vim.fn.system({ 'git', '-C', tmp_dir, 'checkout', '-qb', 'conflict-theirs' })
+  vim.fn.writefile({ 'one', 'theirs', 'staged', 'three' }, changed)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'changed.txt' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'commit', '-qm', 'theirs' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'checkout', '-qb', 'conflict-ours', 'HEAD^' })
+  vim.fn.writefile({ 'one', 'ours', 'staged', 'three' }, changed)
+  vim.fn.system({ 'git', '-C', tmp_dir, 'add', 'changed.txt' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'commit', '-qm', 'ours' })
+  vim.fn.system({ 'git', '-C', tmp_dir, 'merge', '--no-edit', 'conflict-theirs' })
+
+  local conflict_new = diff('changed.txt', {
+    root = tmp_dir,
+    from_index_stage = 2,
+    to_index_stage = 3,
+    side = 'new',
+  })
+  assert(conflict_new[2] == 'C', 'index stage source 应把 ours-to-theirs 差异投影到 theirs')
+
+  local conflict_abs = diff(changed, {
+    root = tmp_dir,
+    from_index_stage = 2,
+    to_index_stage = 3,
+    side = 'new',
+  })
+  assert(conflict_abs and conflict_abs[2] == 'C',
+    'index stage source 应接受与 DiffSource.path 契约一致的绝对路径')
+
+  local invalid_stage_called = false
+  git.diff_lines('changed.txt', function(result)
+    invalid_stage_called = result == nil
+  end, { root = tmp_dir, from_index_stage = 2 })
+  assert(invalid_stage_called, 'index stage source 缺少配对 stage 时应拒绝请求')
 
   vim.fn.delete(tmp_dir, 'rf')
 end)
