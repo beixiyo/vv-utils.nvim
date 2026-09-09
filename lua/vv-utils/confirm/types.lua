@@ -48,5 +48,6 @@
 
 ---@class VVConfirmHandle
 ---@field close fun() 关闭浮窗，不触发回调
+---@field is_open fun(): boolean
 
 return {}

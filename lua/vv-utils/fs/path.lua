@@ -35,34 +35,66 @@ function M.is_dir_empty(path)
   return uv.fs_scandir_next(handle) == nil
 end
 
+local function is_absolute(path)
+  return path:sub(1, 1) == '/'
+    or path:match('^%a:[/\\]') ~= nil
+    or path:match('^\\\\') ~= nil
+end
+
+local function append_path(parent, child)
+  if child == '' then return parent end
+  return vim.fs.joinpath(parent, child)
+end
+
+-- `vim.fs.normalize` folds `..` lexically. For a symlink target that is not
+-- correct until existing symlink components have been expanded first. Vim's
+-- resolver preserves that filesystem order and also handles missing leaves;
+-- symlink loops are delegated to the bounded resolver below.
+local function resolve_target(path)
+  local ok, resolved = pcall(vim.fn.resolve, path)
+  if ok and type(resolved) == 'string' and resolved ~= '' then return norm(resolved) end
+  return path
+end
+
+-- 逐层解析路径，既处理完整路径不存在，也处理叶子 symlink 指向不存在目标
+-- `seen` 让 symlink loop 收敛到当前未解析路径，而不是无限递归
+---@param path string
+---@param seen table<string, boolean>
+---@return string
+local function resolve(path, seen)
+  path = norm(path)
+
+  local real = uv.fs_realpath(path)
+  if real then return norm(real) end
+
+  local stat = uv.fs_lstat(path)
+  if not stat then
+    local parent = dirname(path)
+    if parent == path then return path end
+    return append_path(resolve(parent, seen), basename(path))
+  end
+
+  if stat.type ~= 'link' then return path end
+  if seen[path] then return path end
+  seen[path] = true
+
+  local target = uv.fs_readlink(path)
+  if not target then return path end
+
+  local target_path = is_absolute(target) and target or vim.fs.joinpath(dirname(path), target)
+  target_path = resolve_target(target_path)
+  return resolve(target_path, seen)
+end
+
 -- 把路径解析到真实路径。路径不存在时解析最长存在祖先，再拼回剩余路径段
+-- 叶子 symlink 即使指向不存在目标，也会按 symlink 父目录解析相对 target
 ---@param path string
 ---@return string
 function M.realpath(path)
   if not path or path == '' then return path end
-  local absolute = norm(vim.fn.fnamemodify(path, ':p'))
-
-  local real = uv.fs_realpath(absolute)
-  if real then return norm(real) end
-
-  local rest = {}
-  local current = absolute:gsub('/+$', '')
-  while current ~= '' do
-    local parent = dirname(current)
-    if parent == current then break end
-
-    local resolved = uv.fs_realpath(parent)
-    if resolved then
-      table.insert(rest, 1, basename(current))
-      local separator = resolved:sub(-1) == '/' and '' or '/'
-      return norm(resolved .. separator .. table.concat(rest, '/'))
-    end
-
-    table.insert(rest, 1, basename(current))
-    current = parent
-  end
-
-  return absolute
+  -- 参数本身也可能包含 symlink/..，必须先按文件系统顺序展开
+  local absolute = norm(vim.fn.fnamemodify(resolve_target(path), ':p'))
+  return resolve(absolute, {})
 end
 
 -- 粘贴冲突时在文件名追加 ' (copy)' / ' (copy 2)'，保留后缀

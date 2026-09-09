@@ -25,6 +25,48 @@ assert(Path.is_directory(fixture), 'fixture 应识别为目录')
 assert(not Path.is_directory(upper), '普通文件不应识别为目录')
 assert(Path.is_dir_empty(fixture) == false, '包含文件的目录不应为空')
 
+local real_target = fixture .. '/real-target/file.txt'
+vim.fn.mkdir(vim.fs.dirname(real_target), 'p')
+vim.fn.writefile({ 'target' }, real_target)
+local existing_link = fixture .. '/existing-link'
+assert(vim.uv.fs_symlink('real-target/file.txt', existing_link))
+assert(Path.realpath(existing_link) == vim.fs.normalize(real_target),
+  'existing symlink should resolve to its target')
+
+local broken_parent = fixture .. '/broken-parent'
+vim.fn.mkdir(broken_parent, 'p')
+local broken_link = broken_parent .. '/broken-link'
+assert(vim.uv.fs_symlink('missing/leaf', broken_link))
+assert(Path.realpath(broken_link) == vim.fs.normalize(broken_parent .. '/missing/leaf'),
+  'broken relative symlink should resolve against its own parent')
+assert(Path.realpath(broken_link .. '/../sibling') == vim.fs.normalize(broken_parent .. '/missing/sibling'),
+  'input paths must resolve a broken symlink before applying ..')
+
+local layered_link = broken_parent .. '/layer-1'
+assert(vim.uv.fs_symlink('layer-2', layered_link))
+assert(vim.uv.fs_symlink('missing-final', broken_parent .. '/layer-2'))
+assert(Path.realpath(layered_link) == vim.fs.normalize(broken_parent .. '/missing-final'),
+  'multi-layer broken symlinks should resolve each relative target')
+
+local symlink_target_parent = broken_parent .. '/real/sub'
+vim.fn.mkdir(symlink_target_parent, 'p')
+assert(vim.uv.fs_symlink('real/sub', broken_parent .. '/ancestor-link'))
+local nested_target_link = broken_parent .. '/nested-target'
+assert(vim.uv.fs_symlink('ancestor-link/../missing-final', nested_target_link))
+assert(Path.realpath(nested_target_link) == vim.fs.normalize(broken_parent .. '/real/missing-final'),
+  'broken symlink targets should resolve ancestor symlinks before applying ..')
+
+local loop_a = broken_parent .. '/loop-a'
+local loop_b = broken_parent .. '/loop-b'
+assert(vim.uv.fs_symlink('loop-b', loop_a))
+assert(vim.uv.fs_symlink('loop-a', loop_b))
+assert(Path.realpath(loop_a) == vim.fs.normalize(loop_a),
+  'symlink loops should terminate at a normalized unresolved path')
+
+local missing_descendant = broken_parent .. '/missing/child'
+assert(Path.realpath(missing_descendant) == vim.fs.normalize(missing_descendant),
+  'missing paths should retain their longest existing ancestor')
+
 local empty_dir = fixture .. '/empty'
 vim.fn.mkdir(empty_dir)
 assert(Path.is_dir_empty(empty_dir) == true, '空目录应识别为空')
