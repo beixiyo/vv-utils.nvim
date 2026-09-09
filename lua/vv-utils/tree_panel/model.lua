@@ -63,7 +63,8 @@ function M.find(nodes, id)
   end
 end
 
---- 在可导航行之间循环移动。当前行不在集合内时，先选择移动方向上的最近一行
+--- 在可导航行之间循环移动。当前行不在集合内时，先选择移动方向上的最近一行；
+--- 若方向超出集合边界，则把循环后的边界行作为第一次移动
 ---@param lines integer[]
 ---@param current integer
 ---@param delta -1|1
@@ -99,7 +100,10 @@ function M.move_target(lines, current, delta, count)
     end
   end
 
-  index = index or (delta == 1 and 1 or #lines)
+  if not index then
+    index = delta == 1 and 1 or #lines
+    count = count - 1
+  end
   return lines[((index - 1 + delta * count) % #lines) + 1]
 end
 

@@ -42,7 +42,7 @@ detail value 的每一行保持缩进
 `confirm_icon`、`confirm_label`、`confirm_hl`、`cancel_icon` 和 `cancel_label`
 可覆盖 footer 展示
 
-`open()` 返回 `{ close() }`。主动调用 `close()` 不触发任何回调，并且可以重复调用
+`open()` 返回 `{ close(), is_open() }`。主动调用 `close()` 不触发任何回调，并且可以重复调用
 
 ## 自定义按键
 

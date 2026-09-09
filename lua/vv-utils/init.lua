@@ -7,6 +7,8 @@
 --   blink       【可选集成】统一 descriptor 到 Blink CompletionItem 的 source
 --   yaml        轻量解析
 --   ui_window   UI buffer 的窗口 chrome 管理
+--   ui_rows     通用 text/chunks 行渲染与语义高亮
+--   modal       通用多动作 Modal 浮窗（正文、动作与关闭生命周期）
 --   fs          fs 原语 + 多文件完整内容事务（new_transaction）
 --   git         git status 索引 + porcelain 解析 + ignored 命中判断（异步）
 --   diagnostics 按路径聚合所有 loaded buffer 的 LSP 诊断计数
@@ -25,7 +27,7 @@
 --   match       列表过滤命中判定（fixed / subseq / regex，compile 一次复用，纯函数）
 --   input       声明式输入字段装饰（label / placeholder extmark + key/action 标签）
 --   keys        Neovim 键位记号的紧凑展示（^ / ⌥ / ⇧ / ⌘ / ↵）
---   confirm     通用确认浮窗（可配置内容、动作、危险级别与窗口参数）
+--   confirm     基于 modal 的通用确认浮窗（可配置内容、动作、危险级别与窗口参数）
 --   prompt      底部锚定双行浮动输入框（filter prompt：mode badge / spinner / 防抖 / close 句柄）
 --   color       RGB / RGBA 解析、格式化、插值与 alpha 合成
 --   hl          批量注册 highlight（default=true + ColorScheme 自动重挂）

@@ -17,6 +17,8 @@ require('vv-utils.tree_panel.types')
 ---@field nodes VVTreePanelNode[]
 ---@field folded table<string, boolean>
 ---@field rows table<integer, VVTreePanelRow>
+---@field row_lines integer[]  首物理行组成的逻辑节点导航顺序
+---@field node_lines table<string, integer>  节点 id 到首物理行
 ---@field buf? integer
 ---@field win? integer
 ---@field ns? integer
@@ -57,6 +59,8 @@ function M.new(opts)
     nodes = {},
     folded = {},
     rows = {},
+    row_lines = {},
+    node_lines = {},
   }, Panel)
 end
 
@@ -170,7 +174,24 @@ function Panel:render()
   local visible = Model.flatten(self.nodes, self.folded)
   local output = {}
   local line_rows = {}
+  local row_lines = {}
+  local node_lines = {}
   local render = self.opts.render or {}
+
+  local function append_output(row, logical_row)
+    if row == nil then return end
+    local rendered = Renderer.render(row)
+    for _, physical in ipairs(rendered) do
+      output[#output + 1] = physical
+      if logical_row then
+        line_rows[#output] = logical_row
+        if not node_lines[logical_row.node.id] then
+          node_lines[logical_row.node.id] = #output
+          row_lines[#row_lines + 1] = #output
+        end
+      end
+    end
+  end
 
   if self:is_open() and render.winbar ~= nil then
     local row
@@ -181,38 +202,33 @@ function Panel:render()
   end
 
   if render.header then
-    output[#output + 1] = render.header({ panel = self, count = #visible })
+    append_output(render.header({ panel = self, count = #visible }))
   elseif self.opts.title then
-    output[#output + 1] = { text = self.opts.title, hl = 'Title' }
+    append_output({ text = self.opts.title, hl = 'Title' })
   end
   if #visible == 0 then
-    output[#output + 1] = render.empty and render.empty({ panel = self }) or { text = 'No items', hl = 'Comment' }
+    append_output(render.empty and render.empty({ panel = self }) or { text = 'No items', hl = 'Comment' })
   else
     for _, row in ipairs(visible) do
-      output[#output + 1] = self:_render_node(row)
-      line_rows[#output] = row
+      append_output(self:_render_node(row), row)
     end
   end
-  if render.footer then output[#output + 1] = render.footer({ panel = self, count = #visible }) end
-  if #output == 0 then output[1] = { text = '' } end
+  if render.footer then append_output(render.footer({ panel = self, count = #visible })) end
+  if #output == 0 then append_output({ text = '' }) end
 
   vim.bo[self.buf].modifiable = true
-  vim.api.nvim_buf_set_lines(self.buf, 0, -1, false, {})
   vim.api.nvim_buf_clear_namespace(self.buf, self.ns, 0, -1)
-  for line, row in ipairs(output) do Renderer.set_line(self.buf, self.ns, line - 1, row) end
+  Renderer.set_rendered_lines(self.buf, self.ns, output)
   vim.bo[self.buf].modifiable = false
 
   self.rows = line_rows
+  self.row_lines = row_lines
+  self.node_lines = node_lines
 
   if self:is_open() and cursor_line then
     local target_line
     if cursor_id then
-      for line, candidate in pairs(self.rows) do
-        if candidate.node.id == cursor_id then
-          target_line = line
-          break
-        end
-      end
+      target_line = self.node_lines[cursor_id]
     end
     target_line = target_line or math.min(cursor_line, #output)
     vim.api.nvim_win_set_cursor(self.win, { math.max(1, target_line), 0 })
@@ -250,11 +266,11 @@ end
 function Panel:_move(delta)
   if not self:is_open() then return end
 
-  local lines = {}
-  for line in pairs(self.rows) do lines[#lines + 1] = line end
-  table.sort(lines)
+  local lines = self.row_lines
 
   local current = vim.api.nvim_win_get_cursor(self.win)[1]
+  local current_row = self.rows[current]
+  if current_row then current = self.node_lines[current_row.node.id] end
   local target = Model.move_target(lines, current, delta, vim.v.count1)
   if target then vim.api.nvim_win_set_cursor(self.win, { target, 0 }) end
 end
@@ -281,11 +297,10 @@ end
 ---@return boolean
 function Panel:_focus_node(id)
   if not self:is_open() then return false end
-  for line, candidate in pairs(self.rows) do
-    if candidate.node.id == id then
-      vim.api.nvim_win_set_cursor(self.win, { line, 0 })
-      return true
-    end
+  local line = self.node_lines[id]
+  if line then
+    vim.api.nvim_win_set_cursor(self.win, { line, 0 })
+    return true
   end
   return false
 end

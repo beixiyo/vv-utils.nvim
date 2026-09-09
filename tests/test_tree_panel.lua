@@ -361,6 +361,111 @@ assert_open_rolls_back({
   source = function() error('source failed') end,
 }, 'source 异常')
 
+local multiline_panel = TreePanel.new({
+  id = 'test-multiline-rows',
+  source = function()
+    return {
+      { id = 'multiline-a', label = 'A' },
+      { id = 'multiline-b', label = 'B' },
+    }
+  end,
+  render = {
+    header = function() return { text = 'Header\nDetails' } end,
+    node = function(ctx)
+      return { text = ctx.node.label == 'A' and 'A\nA details' or 'B' }
+    end,
+    footer = function() return 'Footer\nEnd' end,
+  },
+})
+multiline_panel:open()
+local multiline_lines = vim.api.nvim_buf_get_lines(multiline_panel.buf, 0, -1, false)
+assert(#multiline_lines == 7
+    and multiline_lines[1] == 'Header'
+    and multiline_lines[2] == 'Details'
+    and multiline_lines[3] == 'A'
+    and multiline_lines[4] == 'A details'
+    and multiline_lines[5] == 'B'
+    and multiline_lines[6] == 'Footer'
+    and multiline_lines[7] == 'End',
+  'TreePanel should preserve every physical line from multiline render rows')
+assert(multiline_panel.rows[3].node.id == 'multiline-a'
+    and multiline_panel.rows[4].node.id == 'multiline-a'
+    and multiline_panel.rows[5].node.id == 'multiline-b'
+    and #multiline_panel.row_lines == 2
+    and multiline_panel.row_lines[1] == 3
+    and multiline_panel.row_lines[2] == 5,
+  'TreePanel should map physical lines to logical nodes and keep unique navigation anchors')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 1, 0 })
+multiline_panel:execute('prev_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 5,
+  'prev_item from a header line should wrap to the last logical node')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 1, 0 })
+multiline_panel:execute('next_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 3,
+  'next_item from a header line should enter the first logical node')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 7, 0 })
+multiline_panel:execute('prev_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 5,
+  'prev_item from a footer line should enter the last logical node')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 7, 0 })
+multiline_panel:execute('next_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 3,
+  'next_item from a footer line should wrap to the first logical node')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 4, 0 })
+assert(multiline_panel:_cursor_row().node.id == 'multiline-a',
+  'A continuation line should still activate its logical node')
+multiline_panel:execute('next_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 5,
+  'next_item should move from a continuation line to the next logical node')
+multiline_panel:execute('prev_item')
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 3,
+  'prev_item should move between logical node anchors')
+vim.api.nvim_win_set_cursor(multiline_panel.win, { 4, 0 })
+multiline_panel:refresh()
+assert(vim.api.nvim_win_get_cursor(multiline_panel.win)[1] == 3,
+  'refresh should restore a selected multiline node to its first physical line')
+multiline_panel:close()
+
+local nil_renderer_panel = TreePanel.new({
+  id = 'test-nil-renderers',
+  source = function()
+    return {
+      { id = 'hidden-by-renderer', label = 'Hidden' },
+      { id = 'visible-after-nil', label = 'Visible' },
+    }
+  end,
+  render = {
+    header = function() return nil end,
+    node = function(ctx)
+      if ctx.node.id == 'hidden-by-renderer' then return nil end
+      return ctx.node.label
+    end,
+    footer = function() return nil end,
+  },
+})
+nil_renderer_panel:open()
+local nil_renderer_lines = vim.api.nvim_buf_get_lines(nil_renderer_panel.buf, 0, -1, false)
+assert(#nil_renderer_lines == 1 and nil_renderer_lines[1] == 'Visible',
+  'nil header, node, and footer renderers should not create empty physical lines')
+assert(nil_renderer_panel.rows[1].node.id == 'visible-after-nil' and nil_renderer_panel.rows[2] == nil,
+  'a node with nil rendering should not occupy a logical or physical row')
+nil_renderer_panel:close()
+
+local nil_empty_panel = TreePanel.new({
+  id = 'test-nil-empty-renderer',
+  source = function() return {} end,
+  render = {
+    header = function() return nil end,
+    empty = function() return nil end,
+    footer = function() return nil end,
+  },
+})
+nil_empty_panel:open()
+local nil_empty_lines = vim.api.nvim_buf_get_lines(nil_empty_panel.buf, 0, -1, false)
+assert(#nil_empty_lines == 1 and nil_empty_lines[1] == 'No items',
+  'nil empty renderer should preserve the default empty fallback')
+nil_empty_panel:close()
+
 vim.fn.delete(target)
 vim.fn.delete(state_path)
 
