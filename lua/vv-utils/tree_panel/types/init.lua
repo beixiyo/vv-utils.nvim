@@ -54,6 +54,7 @@
 ---@field label_hl? string
 
 ---@class VVTreePanelToolbarOptions
+---@field position? 'top'|'bottom' 工具栏位置 @default 'top'
 ---@field items VVTreePanelToolbarItem[]|fun(ctx: VVTreePanelRenderContext): VVTreePanelToolbarItem[]
 ---@field filetype? string @default 'vv-tree-panel-toolbar'
 ---@field padding? integer @default 1
@@ -78,7 +79,7 @@
 
 ---@class VVTreePanelChunk
 ---@field [1] string
----@field [2]? string
+---@field [2]? string|string[] Stacked highlight groups are applied in order.
 
 ---@class VVTreePanelRenderRow
 ---@field chunks? VVTreePanelChunk[]

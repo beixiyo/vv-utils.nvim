@@ -35,7 +35,8 @@ function M.chunks(text, lang, fallback_hl)
           start_col = math.max(0, math.min(start_col, #text))
           finish = math.max(start_col, math.min(finish, #text))
 
-          if capture and finish > start_col then
+          -- Spell-control captures have no visual style and must not mask syntax.
+          if capture and capture ~= 'spell' and capture ~= 'nospell' and finish > start_col then
             sequence = sequence + 1
             intervals[#intervals + 1] = {
               start_col = start_col,

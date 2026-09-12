@@ -127,7 +127,7 @@ function M.open(panel)
   local panel_win = panel.win
 
   vim.api.nvim_set_current_win(panel_win)
-  vim.cmd('aboveleft 1new')
+  vim.cmd(panel.opts.toolbar.position == 'bottom' and 'belowright 1new' or 'aboveleft 1new')
 
   panel.toolbar_win = vim.api.nvim_get_current_win()
   panel.toolbar_buf = vim.api.nvim_get_current_buf()

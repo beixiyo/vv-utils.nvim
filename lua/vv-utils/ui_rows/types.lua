@@ -2,7 +2,7 @@
 
 ---@class VVUIRowsChunk
 ---@field [1] string
----@field [2]? string
+---@field [2]? string|string[] Buffer/virtual text supports stacked groups; statusline requires a single group.
 
 ---@class VVUIRowsRow
 ---@field text? string
