@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 - 2026-09-12
+
+### Changed
+
+- **tree_panel**：支持底部工具栏
+
+### Fixed
+
+- **tree_panel**：修复 LuaDoc 高亮
+
 ## 0.6.0 - 2026-09-07
 
 ### Added
