@@ -198,8 +198,9 @@ local function create_lock(path, token)
     created_at = wall_ms(),
   })
 
+  -- 不 fsync 锁文件：它只在进程存活期间有意义，断电后残留的锁靠 stale_ms + pid 探测回收，
+  -- 刷盘保证换不来任何正确性。而 macOS 的 fsync 是 F_FULLSYNC，会把每次 set() 拖慢数毫秒
   local ok, error_message = write_fd(fd, payload)
-  if ok then ok, error_message = uv.fs_fsync(fd) end
   local closed, close_error = uv.fs_close(fd)
   if not closed and ok then ok, error_message = false, close_error end
 

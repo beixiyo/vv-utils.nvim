@@ -59,8 +59,11 @@ end
 ---@param data table
 ---@return boolean
 ---@return string? error_message
+-- fsync = false：状态文件保存的是 UI 偏好（面板宽度、打开意图等）。rename 已保证
+-- 读者永远看到完整的旧值或新值，断电丢一次窗口宽度无所谓，不值得为它在每次
+-- set() 上付 macOS F_FULLSYNC 的代价
 local function save_data(self, data)
-  local ok, error_message = pcall(Fs.save_json, self.path, data, { mode = 384 })
+  local ok, error_message = pcall(Fs.save_json, self.path, data, { mode = 384, fsync = false })
   if not ok then
     warn(self, 'failed to save ' .. self.path .. ': ' .. tostring(error_message))
     return false, tostring(error_message)
@@ -124,6 +127,10 @@ function Store:set(namespace, key, field, value)
     local namespace_state = type(data.entries[namespace]) == 'table'
         and data.entries[namespace] or {}
     local key_state = type(namespace_state[key]) == 'table' and namespace_state[key] or {}
+
+    -- 值没变就不写盘：set() 被大量用在「打开面板时记一下当前状态」这类幂等路径上，
+    -- 重复写入除了 IO 没有任何效果
+    if vim.deep_equal(key_state[field], value) then return true end
 
     key_state[field] = vim.deepcopy(value)
     namespace_state[key] = key_state

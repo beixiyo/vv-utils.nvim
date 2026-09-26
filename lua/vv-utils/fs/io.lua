@@ -40,6 +40,10 @@ end
 ---@class VVFsWriteOptions
 ---@field mode? integer  新文件权限；已有文件默认保留原权限 @default nil
 ---@field directory_mode? integer  新建父目录权限；已有目录默认保留原权限 @default 0755
+---@field fsync? boolean  rename 前是否 fsync 临时文件。macOS 上 libuv 的 fsync 是
+---  `F_FULLSYNC`（强制刷盘缓存），磁盘繁忙时单次可达数十毫秒，且它保证的是「断电后内容仍在」
+---  rename 本身已保证「要么旧内容、要么新内容」的原子可见性，因此只关心崩溃一致性、不关心
+---  断电持久性的调用方（UI 偏好、窗口宽度等）可以关掉 @default true
 
 ---@param file string
 ---@param content string
@@ -118,10 +122,12 @@ function M.write_all(file, content, opts)
     offset = offset + written
   end
 
-  local synced, sync_error = uv.fs_fsync(fd)
-  if not synced then
-    cleanup()
-    error('fsync failed: ' .. file .. ' — ' .. tostring(sync_error))
+  if not (opts and opts.fsync == false) then
+    local synced, sync_error = uv.fs_fsync(fd)
+    if not synced then
+      cleanup()
+      error('fsync failed: ' .. file .. ' — ' .. tostring(sync_error))
+    end
   end
 
   local closed, close_error = uv.fs_close(fd)
