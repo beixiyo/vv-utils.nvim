@@ -21,6 +21,20 @@ local FENCED_COMMENT_PATTERNS = {
   '^%s*#',
   '^%s*//',
   '^%s*%-%-',
+  '^%s*/%*',
+  '^%s+%*',
+  '^%s*{/%*',
+  '^%s*<!%-%-',
+}
+
+-- 行尾块注释结束符：句号被它挡住时仍视为注释句号
+-- opener：同一行出现开启符即确认是注释；否则 require_opener=false 时，结束符前有空白也放行
+-- （避免误伤无空白的正则字面量 /完成。*/ 与 Lua 长字符串 [[完成。]]）
+local BLOCK_COMMENT_ENDS = {
+  { suffix = '%*/}$', opener = '/%*' }, -- JSX / TSX：{/* 注释 */}
+  { suffix = '%*/$', opener = '/%*' }, -- C 系 / CSS / JSDoc
+  { suffix = '%-%->$', opener = '<!%-%-' }, -- HTML / Vue / XML / Markdown
+  { suffix = '%]=*%]$', opener = '%-%-%[=*%[', require_opener = true }, -- Lua --[[ ]]
 }
 
 ---@param line string
@@ -71,13 +85,32 @@ local function clean_one_line(line, puncts, peel_closers)
   return line
 end
 
+---清理行尾，并穿过块注释结束符删除被遮挡的句号
+---@param line string
+---@param puncts string[]
+---@param peel_closers boolean
+---@return string
+local function clean_line(line, puncts, peel_closers)
+  line = clean_one_line(line, puncts, peel_closers)
+  for _, rule in ipairs(BLOCK_COMMENT_ENDS) do
+    local start = line:find(rule.suffix)
+    if start then
+      local body, gap = line:sub(1, start - 1):match('^(.-)([ \t]*)$')
+      local has_opener = body:find(rule.opener) ~= nil
+      if not (has_opener or (not rule.require_opener and gap ~= '')) then return line end
+      return clean_one_line(body, puncts, peel_closers) .. gap .. line:sub(start)
+    end
+  end
+  return line
+end
+
 ---@param line string
 ---@param puncts string[]
 ---@return string
 local function clean_fenced_code_line(line, puncts)
   local trimmed = line:gsub('[ \t]+$', '')
   for _, pattern in ipairs(FENCED_COMMENT_PATTERNS) do
-    if trimmed:match(pattern) then return clean_one_line(line, puncts, false) end
+    if trimmed:match(pattern) then return clean_line(line, puncts, false) end
   end
   return trimmed
 end
@@ -104,7 +137,7 @@ function M.clean_prose(text, puncts)
     elseif in_code then
       lines[index] = clean_fenced_code_line(line, puncts)
     else
-      lines[index] = clean_one_line(line, puncts, true)
+      lines[index] = clean_line(line, puncts, true)
     end
   end
   return table.concat(lines, '\n')
@@ -117,7 +150,7 @@ end
 function M.clean_code(text, puncts)
   local lines = vim.split(text, '\n', { plain = true })
   for index, line in ipairs(lines) do
-    lines[index] = clean_one_line(line, puncts, false)
+    lines[index] = clean_line(line, puncts, false)
   end
   return table.concat(lines, '\n')
 end

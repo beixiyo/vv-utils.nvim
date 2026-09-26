@@ -159,6 +159,108 @@ do
   eq('ct lua 字符串句号保留', o[2], "local s = '完成。'")
 end
 
+-- ── 块注释结束符遮挡的句号（/** */、{/* */}、<!-- -->、--[[ ]]）────────────────────
+do
+  local o = run_clean_trailing('typescript', {
+    '/** 读取上一次真正退出时留下的安装意图。 */',
+    '/**',
+    ' * 多行文档注释。',
+    ' * 结束行也带句号。 */',
+    'const a = 1 /* 行尾块注释。 */',
+    '/*紧贴结束符。*/',
+    'const re = /完成。*/',
+    "const s = '完成。*/'",
+    '// 注释。)',
+  })
+  eq('ts jsdoc 单行', o[1], '/** 读取上一次真正退出时留下的安装意图 */')
+  eq('ts jsdoc 多行正文', o[3], ' * 多行文档注释')
+  eq('ts jsdoc 多行结束行', o[4], ' * 结束行也带句号 */')
+  eq('ts 行尾块注释', o[5], 'const a = 1 /* 行尾块注释 */')
+  eq('ts 无空白块注释', o[6], '/*紧贴结束符*/')
+  eq('ts 正则字面量不动', o[7], 'const re = /完成。*/')
+  eq('ts 字符串内 */ 不动', o[8], "const s = '完成。*/'")
+  eq('ts // 注释。) 保守不删', o[9], '// 注释。)')
+end
+do
+  local o = run_clean_trailing('typescriptreact', {
+    '{/* JSX 注释。 */}',
+    '      {/* 缩进 JSX 注释。*/}',
+    '/** 组件说明。 */',
+  })
+  eq('tsx {/* */}', o[1], '{/* JSX 注释 */}')
+  eq('tsx 缩进无空白 {/* */}', o[2], '      {/* 缩进 JSX 注释*/}')
+  eq('tsx jsdoc', o[3], '/** 组件说明 */')
+end
+do
+  local o = run_clean_trailing('css', { '/* 样式说明。 */', '.a { color: red; } /* 行尾。 */' })
+  eq('css 块注释', o[1], '/* 样式说明 */')
+  eq('css 行尾块注释', o[2], '.a { color: red; } /* 行尾 */')
+end
+do
+  local o = run_clean_trailing('scss', { '// 单行。', '/* 块。 */' })
+  eq('scss //', o[1], '// 单行')
+  eq('scss 块', o[2], '/* 块 */')
+end
+do
+  local o = run_clean_trailing('vue', { '<!-- 模板注释。 -->', '<div /> <!-- 行尾。 -->' })
+  eq('vue html 注释', o[1], '<!-- 模板注释 -->')
+  eq('vue 行尾 html 注释', o[2], '<div /> <!-- 行尾 -->')
+end
+do
+  local o = run_clean_trailing('html', { '<!--紧贴。-->' })
+  eq('html 无空白注释', o[1], '<!--紧贴-->')
+end
+do
+  local o = run_clean_trailing('lua', {
+    '--[[ 块注释。 ]]',
+    '--[==[ 等号块注释。 ]==]',
+    "local s = [[ 长字符串。 ]]",
+    '---@param x string 参数说明。',
+  })
+  eq('lua --[[ ]]', o[1], '--[[ 块注释 ]]')
+  eq('lua --[==[ ]==]', o[2], '--[==[ 等号块注释 ]==]')
+  eq('lua 长字符串不动', o[3], "local s = [[ 长字符串。 ]]")
+  eq('lua ---@ 注解', o[4], '---@param x string 参数说明')
+end
+do
+  local o = run_clean_trailing('c', { 'int a; /* C 注释。 */' })
+  eq('c 块注释', o[1], 'int a; /* C 注释 */')
+end
+do
+  local o = run_clean_trailing('python', { '# 注释。', '"""文档字符串。"""' })
+  eq('python #', o[1], '# 注释')
+  eq('python docstring 是字符串，不动', o[2], '"""文档字符串。"""')
+end
+do  -- 散文 buffer：Markdown 里的 HTML 注释
+  local o = run_clean_trailing('markdown', { '<!-- 隐藏说明。 -->', '正文。' })
+  eq('md html 注释', o[1], '<!-- 隐藏说明 -->')
+  eq('md 正文', o[2], '正文')
+end
+do  -- Markdown 围栏内的块注释
+  local o = run_clean_trailing('markdown', {
+    '```tsx',
+    '/** 说明。 */',
+    '/**',
+    ' * 续行。',
+    ' */',
+    '{/* JSX。 */}',
+    'const re = /完成。*/',
+    '```',
+    '```css',
+    '/* 样式。 */',
+    '```',
+    '```html',
+    '<!-- 注释。 -->',
+    '```',
+  })
+  eq('fence jsdoc 单行', o[2], '/** 说明 */')
+  eq('fence jsdoc 续行', o[4], ' * 续行')
+  eq('fence jsx 注释', o[6], '{/* JSX */}')
+  eq('fence 正则字面量不动', o[7], 'const re = /完成。*/')
+  eq('fence css 注释', o[10], '/* 样式 */')
+  eq('fence html 注释', o[13], '<!-- 注释 -->')
+end
+
 -- ── 配置项 punct 可配置（加入感叹号 → 散文也删叹号）────────────────────────────
 do
   F.setup({ punct = { '。', '！' }, commands = false })
