@@ -1,0 +1,55 @@
+-- vv-utils.ui_peek 类型定义（仅注释，无运行时逻辑）
+
+---尺寸维度的取值：固定格数、按 editor 比例，或由函数按上下文返回前两者之一。
+---ratio 基准由轴决定：宽度类为 editor 列数，高度类为 editor 可用行数
+---@alias VVUiPeekSize number|VVUiPeekRatio|fun(ctx:VVUiPeekContext):(number|VVUiPeekRatio)
+
+---@class VVUiPeekRatio
+---@field ratio number 占 editor 对应轴的比例，取值 (0, 1]；非法时回退该维度默认值
+
+---@class VVUiPeekConfig
+---@field width? VVUiPeekSize 目标宽度（列）；缺省按内容与行号列自适应
+---@field height? VVUiPeekSize 目标高度（行）；缺省为内容跨度 + 2
+---@field min_width? VVUiPeekSize 宽度下限 @default 40
+---@field min_height? VVUiPeekSize 高度下限 @default 8
+---@field max_width? VVUiPeekSize 宽度上限 @default editor 列数
+---@field max_height? VVUiPeekSize 高度上限 @default editor 可用行数
+---@field border? string|table 浮窗边框 @default 'rounded'
+---@field title? string|fun(ctx:VVUiPeekContext):string 标题；show item.title 优先
+---@field title_pos? 'center'|'left'|'right' 标题对齐 @default 'center'
+---@field zindex? integer 浮窗层级 @default 50
+---@field win_options? table<string,any> 浮窗窗口选项表；默认清空 statuscolumn、开启 number，不继承全局自绘左列
+---@field close_keys? string[]|false 关闭浮窗并回源窗口的键位；false 禁用默认键 @default { 'q', '<Esc>' }
+---@field keys? table<string,fun()|false> 快照 buffer 上的附加键位；回调无参，false 禁用单个键
+---@field position? fun(ctx:VVUiPeekContext):{anchor:string,row:number,col:number} 自定义锚点（editor 相对 0-based）；缺省为源光标下方优先、空间不足翻上方
+---@field hl? {line?:string,range?:string} 落点行与范围高亮组 @default { line = 'CursorLine', range = 'Search' }
+---@field max_lines? integer 从 uri/path 读取的行上限，0 表示全部 @default 0
+---@field on_close? fun() 浮窗关闭（任何路径）后的回调，用于调用方清理会话状态
+
+---@class VVUiPeekItem
+---@field rows? (VVUIRowsRow|string)[] 自绘内容行（text/hl/chunks/virt_text，同 ui_rows）；与 lines/uri/path 互斥。坐标即物理行与字节列，不叠加语法高亮，除非显式给 filetype
+---@field lines? string[] 直接提供内容行；与 uri/path 二选一
+---@field uri? string 内容来源 URI；file URI 直读文件，非 file URI（如 jdt://）回退 bufload
+---@field path? string 内容来源文件路径
+---@field filetype? string 强制指定 filetype；缺省按文件名检测
+---@field range? {start:{line:integer,character:integer},['end']:{line:integer,character:integer}} LSP range；character 按 encoding 解析，用于落点高亮与默认光标
+---@field encoding? string LSP offset encoding @default 'utf-16'
+---@field cursor? {line:integer,col:integer} 显式光标（0-based 行 + byte 列）；缺省 range.start
+---@field title? string|fun(ctx:VVUiPeekContext):string 本次标题；优先于 setup 的 title 配置
+---@field source_win? integer 挂载的源窗口；缺省当前窗口，源窗口关闭时浮窗一并关闭
+---@field enter? boolean 是否聚焦浮窗 @default true
+
+---@class VVUiPeekContext
+---@field buf integer 快照 buffer
+---@field lines string[] 本次内容行
+---@field line_count integer 总行数
+---@field span integer range 行跨度（无 range 时为 1）
+---@field range? table 原始 LSP range
+---@field cursor? {line:integer,col:integer} item.cursor
+---@field filetype? string 检测或指定的 filetype
+---@field source_win integer 源窗口
+---@field number_width integer 行号列显示宽度
+---@field max_line_width integer 采样窗口内最长行的显示宽度
+---@field screen {columns:integer,lines:integer,available:integer} editor 尺寸；available 为扣除命令行等后的可用行数
+---@field width integer 解析后的窗口宽度（position 函数执行时可用）
+---@field height integer 解析后的窗口高度（position 函数执行时可用）

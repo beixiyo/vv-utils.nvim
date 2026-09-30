@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 - 2026-09-30
+
+### Added
+
+- **ui_peek**：通用内容浮窗。内容三种来源：`rows` 自绘行（复用 ui_rows 的 text/hl/chunks/virt_text，不经文件）、`lines` 纯文本、`uri`/`path` 文件快照；模块负责几何与锚点、语法高亮、落点高亮、键位与窗口生命周期；宽高/上下限/标题/锚点全部支持函数形态（收 ctx）；不继承全局 statuscolumn 自绘左列，默认显示原生行号；range 落点高亮 priority 5000，叠加在自绘行高亮与 treesitter 之上
+- **ui_peek**：尺寸字段（`width` / `height` / `min_*` / `max_*`）支持 `{ ratio = n }`
+
 ## 0.6.2 - 2026-09-26
 
 ### Added
