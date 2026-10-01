@@ -290,13 +290,12 @@ do
     return out
   end
 
+  -- 改名前 detach：旧 URI 收到 didClose；新 URI 第一条就是 didOpen，不能对未打开的文档发 didClose
   local manual = for_uri('manual')
-  local close_at, open_at
-  for i, e in ipairs(manual) do
-    if e.method == 'didClose' then close_at = i end
-    if e.method == 'didOpen' then open_at = i end
-  end
-  assert(close_at and open_at and close_at < open_at, '手动 client 应收到 didClose → didOpen，实际 ' .. vim.inspect(manual))
+  local old_uri = vim.uri_from_fname(old)
+  local old_closed = vim.tbl_filter(function(e) return e.uri == old_uri and e.method == 'didClose' end, events.manual)
+  assert(#old_closed == 1, '手动 client 应收到旧 URI 的 didClose，实际 ' .. vim.inspect(events.manual))
+  assert(manual[1] and manual[1].method == 'didOpen', '手动 client 在新 URI 上第一条应是 didOpen，实际 ' .. vim.inspect(manual))
   assert(#for_uri('manual', 'didOpen') == 1, '手动 client 只应重新 didOpen 一次')
   assert(for_uri('manual', 'didOpen')[1].text == 'local x = 1\n', '补救附着的 didOpen 文本应与 buffer 一致，实际 ' .. vim.inspect(for_uri('manual', 'didOpen')[1].text))
   assert(#for_uri('auto', 'didOpen') == 1, '自动 client 只应在 FileType 重附时 didOpen 一次，实际 ' .. #for_uri('auto', 'didOpen'))

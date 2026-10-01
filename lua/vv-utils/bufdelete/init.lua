@@ -11,11 +11,14 @@
 --   M.is_throwaway(buf)                — 判定空 [No Name]（无 buftype/无名/未改/空内容）
 --   M.wipe_if_throwaway(buf)           — 上述判定为真且不在任何窗时 wipe，用于"主窗 buf 被替换"
 --                                        场景清理 startup [No Name] / dashboard 残留
+--   M.replace_in_windows(buf)          — 只把显示 buf 的窗口换成其它 buffer，不删除 buf
 
 local M = setmetatable({}, {
   __call = function(t, arg) return t.delete(arg) end,
 })
 
+---把显示 buf 的窗口都换成其它 buffer（优先该窗口的 alternate，其次最近使用的 listed buffer，都没有则新建空 buffer）
+---窗口设了 winfixbuf 时 nvim_win_set_buf 会抛 E1513，由调用方决定如何处理
 ---@param buf integer
 local function replace_in_windows(buf)
   local info = vim.fn.getbufinfo({ buflisted = 1 })
@@ -60,6 +63,8 @@ function M.delete(arg)
   replace_in_windows(buf)
   if vim.api.nvim_buf_is_valid(buf) then pcall(vim.cmd, "bdelete! " .. buf) end
 end
+
+M.replace_in_windows = replace_in_windows
 
 function M.all()
   M.delete({ filter = function() return true end })

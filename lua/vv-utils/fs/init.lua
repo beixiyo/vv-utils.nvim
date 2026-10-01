@@ -27,5 +27,6 @@ return {
   temp = temp,
 
   sync_buffers = buffer.sync_buffers,
+  close_stale_buffers = buffer.close_stale_buffers,
   new_transaction = transaction.new,
 }

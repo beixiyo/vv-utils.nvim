@@ -377,7 +377,8 @@ do
 end
 
 -- 16. LSP / treesitter：未修改 buffer 重读后必须重新附着（去掉 noautocmd 的依据）。假 server 记录 didOpen/didClose/didChange；
---     已修改 buffer 不重读，client 不重附、不发 didClose/didOpen
+--     无论是否修改，服务端都必须收到旧 URI 的 didClose 与新 URI 的 didOpen（Neovim 内置 LSP 不处理改名，
+--     否则旧路径会一直被服务端当成客户端已打开的文档）；已修改 buffer 的 didOpen 带未保存内容
 do
   local events = {}
   vim.lsp.config('vv_fake_sync', {
@@ -434,18 +435,25 @@ do
     assert(vim.treesitter.highlighter.active[buf], case .. '：改名后 treesitter 高亮应存在')
     assert(vim.bo[buf].filetype == 'lua', case .. '：filetype 应保持')
 
-    local got = methods_for(vim.uri_from_fname(new))
+    local old_uri, new_uri = vim.uri_from_fname(old), vim.uri_from_fname(new)
+    local old_got, got = methods_for(old_uri), methods_for(new_uri)
+    assert(old_got[#old_got] == 'didClose', case .. '：旧路径最后应收到 didClose，实际 ' .. vim.inspect(old_got))
+    assert(got[1] == 'didOpen', case .. '：新路径第一条应是 didOpen（不能对未打开的文档发 didClose/didChange），实际 ' .. vim.inspect(got))
+    local close_at, open_at
+    for i, e in ipairs(events) do
+      if e.uri == old_uri and e.method == 'textDocument/didClose' then close_at = i end
+      if e.uri == new_uri and e.method == 'textDocument/didOpen' and not open_at then open_at = i end
+    end
+    assert(close_at < open_at, case .. '：旧 URI 的 didClose 应先于新 URI 的 didOpen')
     if case == 'dirty' then
-      assert(not vim.tbl_contains(got, 'didOpen'), case .. '：已修改 buffer 不重读，不应重新 didOpen，实际 ' .. vim.inspect(got))
-      assert_e13(buf, case)
-    else
-      local close_at, open_at
-      for i, m in ipairs(got) do
-        if m == 'didClose' then close_at = i end
-        if m == 'didOpen' then open_at = i end
+      local opened
+      for _, e in ipairs(events) do
+        if e.uri == new_uri and e.method == 'textDocument/didOpen' then opened = e.text end
       end
-      assert(close_at and open_at and close_at < open_at, case .. '：新路径应收到 didClose → didOpen，实际 ' .. vim.inspect(got))
-      if case == 'clean' then assert(write(buf), case .. '：:w 不应失败') end
+      assert(opened and opened:find('local y = 2', 1, true), case .. '：didOpen 应带未保存内容，实际 ' .. vim.inspect(opened))
+      assert_e13(buf, case)
+    elseif case == 'clean' then
+      assert(write(buf), case .. '：:w 不应失败')
     end
 
     events = {}
