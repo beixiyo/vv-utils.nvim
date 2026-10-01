@@ -5,17 +5,30 @@ local function supports(client, capability)
   return vim.tbl_get(client, 'server_capabilities', 'workspace', 'fileOperations', capability) ~= nil
 end
 
----构造 workspace/didRenameFiles 与 workspace/willRenameFiles 参数
+---@class VVLspFileRename
+---@field old_path string
+---@field new_path string
+
+---构造包含多个文件的 workspace/didRenameFiles 与 workspace/willRenameFiles 参数
+---@param renames VVLspFileRename[]
+---@return table params
+function M.renames_params(renames)
+  local files = {}
+  for _, rename in ipairs(renames) do
+    files[#files + 1] = {
+      oldUri = vim.uri_from_fname(rename.old_path),
+      newUri = vim.uri_from_fname(rename.new_path),
+    }
+  end
+  return { files = files }
+end
+
+---构造单个文件的 workspace/didRenameFiles 与 workspace/willRenameFiles 参数
 ---@param old_path string
 ---@param new_path string
 ---@return table params
 function M.rename_params(old_path, new_path)
-  return {
-    files = {{
-      oldUri = vim.uri_from_fname(old_path),
-      newUri = vim.uri_from_fname(new_path),
-    }},
-  }
+  return M.renames_params({ { old_path = old_path, new_path = new_path } })
 end
 
 ---@param capability 'willRename'|'didRename'
@@ -61,8 +74,19 @@ end
 ---@param timeout_ms integer
 ---@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean)
 function M.will_rename_async(old_path, new_path, timeout_ms, on_done)
+  M.will_rename_many_async({ { old_path = old_path, new_path = new_path } }, timeout_ms, on_done)
+end
+
+---异步收集一次包含多个文件的 workspace/willRenameFiles 响应，不应用编辑
+---
+---多个文件放进同一个请求，服务端返回一份互相一致的编辑，且总等待时间只受 timeout_ms 约束
+---@param renames VVLspFileRename[]
+---@param timeout_ms integer
+---@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean)
+function M.will_rename_many_async(renames, timeout_ms, on_done)
   local clients = M.clients('willRename')
-  if #clients == 0 then return on_done({}, false) end
+  -- 没有要询问的文件时不发请求，与 notify_did_rename_many 对空数组的处理一致
+  if #clients == 0 or #renames == 0 then return on_done({}, false) end
 
   local edits = {}
   local pending = #clients
@@ -78,7 +102,7 @@ function M.will_rename_async(old_path, new_path, timeout_ms, on_done)
   end
 
   timer:start(timeout_ms, 0, vim.schedule_wrap(function() finish(true) end))
-  local params = M.rename_params(old_path, new_path)
+  local params = M.renames_params(renames)
   for _, client in ipairs(clients) do
     local current_client = client
     current_client:request('workspace/willRenameFiles', params, function(error, result)
@@ -99,7 +123,14 @@ end
 ---@param old_path string
 ---@param new_path string
 function M.notify_did_rename(old_path, new_path)
-  local params = M.rename_params(old_path, new_path)
+  M.notify_did_rename_many({ { old_path = old_path, new_path = new_path } })
+end
+
+---向支持的客户端一次发送包含多个文件的 workspace/didRenameFiles
+---@param renames VVLspFileRename[]
+function M.notify_did_rename_many(renames)
+  if #renames == 0 then return end
+  local params = M.renames_params(renames)
   for _, client in ipairs(M.clients('didRename')) do
     client:notify('workspace/didRenameFiles', params)
   end

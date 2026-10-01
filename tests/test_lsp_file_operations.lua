@@ -6,6 +6,7 @@ local FileOperations = require('vv-utils.lsp.file_operations')
 local notifications = {}
 local edit = { changes = {} }
 local pending_callbacks = {}
+local last_request_params
 local client = {
   name = 'fixture-lsp',
   offset_encoding = 'utf-16',
@@ -20,6 +21,7 @@ local client = {
   end,
   request = function(_, method, params, callback)
     assert(method == 'workspace/willRenameFiles')
+    last_request_params = params
     pending_callbacks[#pending_callbacks + 1] = callback
   end,
   notify = function(_, method, params)
@@ -48,6 +50,36 @@ assert(done.edits[2].encoding == 'utf-16')
 
 FileOperations.notify_did_rename('/code/a.ts', '/code/b.ts')
 assert(#notifications == 2 and notifications[1].method == 'workspace/didRenameFiles')
+
+-- 多个文件必须合并进同一个请求 / 通知，而不是按文件各发一次
+local batch = {
+  { old_path = '/code/a.ts', new_path = '/code/sub/a.ts' },
+  { old_path = '/code/b.ts', new_path = '/code/sub/b.ts' },
+}
+pending_callbacks = {}
+local batch_done
+FileOperations.will_rename_many_async(batch, 1000, function(result, timed_out)
+  batch_done = { edits = result, timed_out = timed_out }
+end)
+assert(#pending_callbacks == 2, 'one request per client, not per file')
+assert(#last_request_params.files == 2, 'both files must be in the same request')
+assert(last_request_params.files[2].newUri == vim.uri_from_fname('/code/sub/b.ts'))
+pending_callbacks[1](nil, edit)
+pending_callbacks[2](nil, edit)
+assert(vim.wait(1000, function() return batch_done ~= nil end) and #batch_done.edits == 2)
+
+pending_callbacks = {}
+local empty_done
+FileOperations.will_rename_many_async({}, 1000, function(result, timed_out) empty_done = { result, timed_out } end)
+assert(empty_done and #empty_done[1] == 0 and empty_done[2] == false and #pending_callbacks == 0,
+  'an empty batch must not send any request')
+
+notifications = {}
+FileOperations.notify_did_rename_many(batch)
+assert(#notifications == 2 and #notifications[1].params.files == 2, 'didRename must carry every file in one notification')
+notifications = {}
+FileOperations.notify_did_rename_many({})
+assert(#notifications == 0, 'empty batch must not notify')
 
 vim.lsp.get_clients = original_get_clients
 print('vv-utils LSP file operations test: ok')

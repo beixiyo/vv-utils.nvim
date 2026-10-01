@@ -14,7 +14,7 @@
 
 ## 文件重命名协议
 
-`file_operations.will_rename_sync` / `will_rename_async` 收集 `workspace/willRenameFiles` 的编辑，`notify_did_rename` 发送 `workspace/didRenameFiles`，`clients(capability)` 查询支持该能力的客户端
+`file_operations.will_rename_sync` / `will_rename_async` 收集 `workspace/willRenameFiles` 的编辑，`notify_did_rename` 发送 `workspace/didRenameFiles`；`will_rename_many_async` / `notify_did_rename_many` 接收 `{ old_path, new_path }[]`，把多个文件放进同一个请求或通知；`renames_params` 构造对应的 `files` 参数，`clients(capability)` 查询支持该能力的客户端
 
 ## 边界
 

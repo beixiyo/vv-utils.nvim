@@ -14,7 +14,11 @@ local Operations = require('vv-utils.fs.operations')
 local Path = require('vv-utils.fs.path')
 local Probe = require('vv-utils.fs.file_probe')
 local Render = require('vv-utils.fs.file_render')
+-- macOS 的 tempname 位于 /var（指向 /private/var 的符号链接），先解析真实路径，
+-- 避免与被测代码返回的 realpath 不一致
 local fixture = vim.fn.tempname()
+vim.fn.mkdir(fixture, 'p')
+fixture = assert(vim.uv.fs_realpath(fixture))
 local upper = fixture .. '/README.MD'
 local lower = fixture .. '/README.md'
 
