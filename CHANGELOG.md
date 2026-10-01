@@ -1,16 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-10-01
 
 ### Added
 
+- **fs.close_stale_buffers**：关闭指向已删除文件的未修改 buffer，LSP 收到 didClose；已修改的 buffer、`winfixbuf` 窗口里的 buffer 不关，不抛错
+- **bufdelete.replace_in_windows**：只把显示某 buffer 的窗口换成其它 buffer，不删除它
 - **file_operations**：新增 `will_rename_many_async` / `notify_did_rename_many`，多个文件合并为一次 LSP 请求或通知；单文件 API 不变
 
 ### Changed
 
 - **fs.sync_buffers**：改名后重读未修改的 buffer 以清除 notedited，之后 `:w` 不再报 E13
   - **已修改的 buffer 绝不重读**：只改名，内容、undo、mark、磁盘全部不变，`:w` 仍报 E13，调用方需用 `write!`
-  - 重读会触发 BufReadPre/Post、FileType 等 autocmd，LSP 收到 `didClose` → `didOpen`，窗口内折叠会丢失
+  - 重读会触发 BufReadPre/Post、FileType 等 autocmd，窗口内折叠会丢失
   - `++enc` / `++ff`、readonly、光标与视图、undo 历史保持不变；手动 `vim.lsp.start` 附着的 client 会补附着
   - 不重读（只改名）：buffer 已修改、`buftype` 非空、新路径不是可读的普通文件（含命名管道，不会阻塞）
   - 重读时 autocmd 报错：恢复内容并 WARN，此时 notedited 不清除，`:w` 仍报 E13
@@ -19,6 +21,7 @@
 
 ### Fixed
 
+- **fs.sync_buffers 不同步 LSP**：Neovim 内置 LSP 不处理 buffer 改名，旧路径永远收不到 didClose，服务端一直当它已打开。现在改名前 detach、改名后重新 attach，依次发旧 URI 的 didClose 和新 URI 的 didOpen（已修改 buffer 的 didOpen 带未保存内容）
 - **keys.display**：`<Bslash>` / `<Bar>` 显示为 `\` / `|`（原为 `Bslash` / `Bar`）；带修饰键时 `Bslash` / `Bar` / `lt` / `Space` / `CR` 同样还原，如 `<M-\>` → `⌥\`、`<C-Space>` → `^␠`、`<C-CR>` → `^↵`
 - **三个本机失败的测试**：`test_keys`、`test_lsp_code_actions`、`test_state`（后两者是测试对 macOS 与新版 Neovim 的假设不成立）
 
