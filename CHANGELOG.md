@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **file_operations**：新增 `will_rename_many_async` / `notify_did_rename_many`，多个文件合并为一次 LSP 请求或通知；单文件 API 不变
+
+### Changed
+
+- **fs.sync_buffers**：改名后重读未修改的 buffer 以清除 notedited，之后 `:w` 不再报 E13
+  - **已修改的 buffer 绝不重读**：只改名，内容、undo、mark、磁盘全部不变，`:w` 仍报 E13，调用方需用 `write!`
+  - 重读会触发 BufReadPre/Post、FileType 等 autocmd，LSP 收到 `didClose` → `didOpen`，窗口内折叠会丢失
+  - `++enc` / `++ff`、readonly、光标与视图、undo 历史保持不变；手动 `vim.lsp.start` 附着的 client 会补附着
+  - 不重读（只改名）：buffer 已修改、`buftype` 非空、新路径不是可读的普通文件（含命名管道，不会阻塞）
+  - 重读时 autocmd 报错：恢复内容并 WARN，此时 notedited 不清除，`:w` 仍报 E13
+  - 边界详见 `lua/vv-utils/fs/README.md`
+- **测试 runner**：`tests/run.sh` 校验完成标记，测试中途退出（退出码仍为 0）不再被误判为通过
+
+### Fixed
+
+- **keys.display**：`<Bslash>` / `<Bar>` 显示为 `\` / `|`（原为 `Bslash` / `Bar`）；带修饰键时 `Bslash` / `Bar` / `lt` / `Space` / `CR` 同样还原，如 `<M-\>` → `⌥\`、`<C-Space>` → `^␠`、`<C-CR>` → `^↵`
+- **三个本机失败的测试**：`test_keys`、`test_lsp_code_actions`、`test_state`（后两者是测试对 macOS 与新版 Neovim 的假设不成立）
+
 ## 0.7.0 - 2026-09-30
 
 ### Added

@@ -43,6 +43,11 @@ local client = {
   end,
 }
 
+-- vim.lsp.diagnostic 首次加载时会 Capability.enable('diagnostics') 并遍历
+-- vim.lsp.get_clients() 读取 client.attached_buffers；生产代码是懒加载它的，
+-- 必须在替换 get_clients 为不带该字段的桩之前先加载，否则桩 client 会让 nvim 运行时自身报错
+require('vim.lsp.diagnostic')
+
 local original_get_clients = vim.lsp.get_clients
 vim.lsp.get_clients = function() return { client } end
 

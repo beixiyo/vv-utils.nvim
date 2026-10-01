@@ -10,14 +10,24 @@ local modifiers = {
   D = '⌘',
 }
 
+-- 带不带修饰键都要还原为可见字符/符号的键名；display_token 在剥掉修饰键后同样查这张表，
+-- 否则 <M-\> 会显示成 ⌥Bslash、<C-Space> 显示成 ^Space（与无修饰的 ␠ 不一致）
 local special_keys = {
   CR = '↵',
-  -- <NL> 是 Ctrl-J，不能与 <CR> 合并；宏和映射可能同时包含两者
-  NL = '^j',
   -- keytrans() 会把字面量左尖括号表示成 <lt>
   lt = '<',
+  -- keytrans() 会把字面量反斜杠 / 竖线记作 <Bslash> / <Bar>（当前 nvim 实测）；
+  -- 展示给人看时应还原为字符本身，否则 <localleader>（默认 \）会显示成 Bslashr
+  Bslash = '\\',
+  Bar = '|',
   -- 空格作为 <leader> 时必须在帮助文本中保持可见
   Space = '␠',
+}
+
+-- 仅无修饰时才成立的展示：<NL> 本身是 Ctrl-J，不能与 <CR> 合并（宏和映射可能同时包含两者），
+-- 带修饰键时 ^ 前缀会重复，所以保持原名
+local bare_only_keys = {
+  NL = '^j',
 }
 
 local modifier_order = { 'C', 'M', 'S', 'D' }
@@ -77,6 +87,7 @@ local function display_token(token)
   local name = token:match('^<(.*)>$')
   if name then
     if special_keys[name] then return special_keys[name] end
+    if bare_only_keys[name] then return bare_only_keys[name] end
 
     local active = {}
     local has_modifier = false
@@ -95,6 +106,8 @@ local function display_token(token)
     if has_modifier and #key == 1 then
       -- keytrans() 会把修饰键后的字母规范为大写；紧凑提示仅在含 Shift 时保留大写
       key = has_shift and key:upper() or key:lower()
+    elseif has_modifier and special_keys[key] then
+      key = special_keys[key]
     end
 
     local hints = {}

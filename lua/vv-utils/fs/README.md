@@ -12,7 +12,7 @@
 | 文件操作 | `mkdir_p(directory)`、`create_file(file)`、`delete(target)`、`rename(source, destination)`、`copy(source, destination)` |
 | 内容 | `read_all(file)`、`write_all(file, content, opts?)`、`load_json(source, opts?)`、`save_json(file, data, opts?)` |
 | 临时文件 | `temp.write(content, opts?)`、`temp.create(opts?)`、`temp.cleanup(paths)` |
-| 编辑器 | `sync_buffers(old, new)`，把已打开的 buffer 与文件移动保持一致 |
+| 编辑器 | `sync_buffers(old, new)`，把已打开的 buffer 与文件移动保持一致：改名后，**未修改**的 buffer 重读磁盘文件清除 notedited，之后可直接 `:w`；**已修改**的 buffer 只改名、绝不重读，对已存在的目标 `:w` 仍报 E13，调用方需用 `write!`。边界见下节 |
 | 事务 | `new_transaction(opts)` |
 
 文件与目录信息按职责使用独立模块
@@ -30,6 +30,48 @@
 `temp.write()` 和 `temp.create()` 使用独占创建，默认权限为 `0600`；调用方持有返回路径，并用幂等的 `temp.cleanup()` 清理自己的文件
 
 `is_directory()` 跟随软链接；`is_dir_empty()` 只读取第一个目录成员，路径不是目录或无法读取时返回 `nil, error_message`
+
+## sync_buffers 边界
+
+`nvim_buf_set_name` 会让 buffer 带上 notedited，对已存在的文件 `:write` 报 E13。实测能清除它的只有两种办法：重新读取文件（`:edit!`），或 `:write!`（但它会写盘）。`sync_buffers` 改名后对**未修改**的 buffer 执行一次 `:edit!`（`keepalt keepjumps silent`）来清除它，这是有副作用的操作
+
+**最高原则：绝不重读已修改的 buffer。** 数据安全靠“从不碰未保存内容”从构造上保证，而不是靠重读后的恢复逻辑。因此已修改 buffer 只改名并触发 `BufFilePost`，其余一切原封不动：内容、modified、undo 树、mark、jumplist、changelist、extmark、光标、视图和磁盘文件。代价是它仍带 notedited：
+
+- 对已存在的目标 `:w` 报 E13，**调用方需要对它用 `write!`**，并自行保证“磁盘上仍是编辑前的内容”之类的前提（例如文件刚被移动过来，目标就是原内容），因为 `write!` 会跳过一切覆盖检查
+- “文件被外部改动”的保护**不受影响**：已修改 buffer 不重读，buffer 对磁盘文件的 mtime 基线没有被动过，因此不会因为 `sync_buffers` 而重置这项保护。未修改 buffer 重读后则以新的磁盘内容与 mtime 为基线，这是预期
+
+### 重读的跳过条件
+
+满足任一即只改名、不重读（notedited 保留）：
+
+- buffer 已修改（含用户手动 `:set modified` 的 buffer）
+- `buftype` 非空
+- 新路径不是可读的普通文件：不存在、是目录、无读权限，或是 FIFO / socket / 设备。判断用 `fs_stat` 的 `type == 'file'`（跟随软链接）加 `fs_access(R)`，**不能用 `filereadable`**：它对命名管道也返回 1，而 `:edit!` 读 FIFO 会让 nvim 永久阻塞
+
+跳过的 buffer 之后 `:w` 的结果取决于目标，实测：FIFO 报 E13；不可读文件被 E505、目录被 E17、`nofile` 被 E382 先拦下；目标不存在时 `:w` 直接创建文件，没有问题
+
+### 重读的副作用
+
+- **autocmd 会重新触发**：BufReadPre/Post、FileType 等都会再跑一遍。这是有意的——`:edit!` 会让 LSP 与 treesitter detach，只有这些事件才能让它们重新附着；实测加 `noautocmd` 后 treesitter 高亮丢失、用户 autocmd 不触发。LSP 服务端会收到 `didClose` → `didOpen`
+- **LSP 重新附着**：FileType 驱动的 client（`vim.lsp.enable`）由重读触发的 FileType 自动重新附着，`sync_buffers` 不插手，不会重复附着。`vim.lsp.start` 手动附着的 client 不会因 FileType 重附，所以重读前会记录 buffer 已附着的 client，重读后对**仍在运行但没有重新附着**的 client 调用 `vim.lsp.buf_attach_client`（已停止的 client 不会被拉起）。其余情形（例如某些进程内 LSP 的 manager 自认为 buffer 已附着、不再重附）无法由 `sync_buffers` 判断，以实际表现为准，这是限制
+- **窗口状态**：buffer 在窗口内的折叠会丢失；光标与滚动位置用 `winsaveview` / `winrestview` 恢复，mark 基本不受影响（`:edit!` 不调整 mark），唯一例外是 `'"` mark，重读后会被设为当前光标位置
+- **窗口绑定**：`rundo`、`winrestview` 显式绑定重读开始时的窗口与 buffer，重读期间 autocmd 切走窗口或标签页也不会作用到别的窗口或 buffer；原窗口已关闭或不再显示该 buffer 时只恢复 undo，不恢复视图
+- **编码与换行**：重读显式带 `++enc=<fileencoding> ++ff=<fileformat>`，不会把 `++enc=cp936` 打开的文件重新探测成 latin1，也不会把 `++ff=unix` 打开的 CRLF 文件改回 dos；binary 由 `:edit!` 自己保留
+- **readonly**：重读按文件权限重置它，用户手动 `:set ro` 的状态在重读后恢复
+- **undo 链**：已保存的 buffer 有 undo 历史很常见。`:edit!` 在行数 ≥ `undoreload`（默认 10000）时会清空 undo 历史，小 buffer 则会多出一个按了没反应的 undo 步。所以有历史（`undotree().seq_last > 0`）的 buffer 重读前用 `wundo!` 存到临时文件，重读后 `rundo` 恢复，临时文件用完即删。没有历史的 buffer 不做这件事，仍会多出那个 undo 步（实测，`:edit!` 自身行为）。磁盘内容与 buffer 不一致（如文件被外部改过）时 `rundo` 会因内容校验失败，退化为 `:edit!` 的默认行为
+
+### 重读期间 autocmd 报错
+
+BufReadPre/BufReadPost/FileType 里的用户 autocmd 报错时，`:edit!` 的 `vim.cmd` 会抛错，但磁盘内容往往已经读进来了，所以**不依赖 `:edit!` 的返回值**，只看是否出错。出错时：
+
+- 内容被破坏（例如 BufReadPre 报错会把 buffer 清空成一个空行并误置 readonly）则恢复原行、`fileformat` / `fileencoding` / `endofline` / `fixendofline` / `bomb`、readonly，并把 modified 置回 false
+- 用 WARN 通知把原始错误信息告诉用户，并说明 buffer 已恢复；恢复不了（例如 autocmd 把 buffer 置为 nomodifiable 且磁盘内容与重读前不同）时如实写“未能完整恢复，请检查”
+- **notedited 不会被清除**：实测 `:w` 仍报 E13，需要 `:w!`
+
+### 其它
+
+- buffer 在 `BufFilePost` 等 autocmd 里被 wipe 时，`sync_buffers` 不抛错，也不会中断同一次目录改名里其余 buffer 的处理：入口与每次使用 bufnr 前都校验 `nvim_buf_is_valid`
+- 未命中的 buffer 不受影响
 
 ## 目录统计边界
 

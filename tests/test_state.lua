@@ -10,7 +10,10 @@ local Lock = require('vv-utils.state.lock')
 local Fs = require('vv-utils.fs')
 local Watch = require('vv-utils.state.watch')
 
-local root = vim.fs.joinpath('/tmp', 'vv-utils-state-test-' .. vim.uv.os_getpid())
+-- macOS 的 /tmp 是 /private/tmp 的符号链接；生产代码锁路径经 Fs.realpath 规范化，
+-- 下面按路径字符串匹配的 uv 注入点必须使用同一规范路径，否则永远不会命中
+local tmp_root = vim.uv.fs_realpath('/tmp') or '/tmp'
+local root = vim.fs.joinpath(tmp_root, 'vv-utils-state-test-' .. vim.uv.os_getpid())
 local path = vim.fs.joinpath(root, 'state.json')
 
 local function cleanup()

@@ -24,6 +24,34 @@ local cases = {
   { '<C-W>q', '^wq' },
   { '<localleader>r', '\\r' },
   { '<leader>fp', '␠fp' },
+  -- keytrans() 把 \ 与 | 记作 <Bslash> / <Bar>，展示层必须还原为字符
+  { '<Bar>', '|' },
+  { '\\', '\\' },
+  -- 带修饰键时剥掉修饰后的键名同样要还原（曾显示 ⌥Bslash / ⌥Bar / ⌥lt / ^Space / ^CR）
+  { '<M-\\>', '⌥\\' },
+  { '<M-Bslash>', '⌥\\' },
+  { '<C-\\>', '^\\' },
+  { '<M-Bar>', '⌥|' },
+  { '<D-Bar>', '⌘|' },
+  { '<M-lt>', '⌥<' },
+  { '<C-lt>', '^<' },
+  { '<C-Space>', '^␠' },
+  { '<M-Space>', '⌥␠' },
+  { '<M-S-Space>', '⌥⇧␠' },
+  { '<C-CR>', '^↵' },
+  { '<M-CR>', '⌥↵' },
+  { '<C-M-CR>', '^⌥↵' },
+  -- 无语义映射的具名键带修饰键与无修饰键一致：保留 keytrans 名称
+  { '<Esc>', 'Esc' },
+  { '<Tab>', 'Tab' },
+  { '<Nul>', 'Nul' },
+  { '<C-Esc>', '^Esc' },
+  { '<M-Tab>', '⌥Tab' },
+  { '<C-F5>', '^F5' },
+  { '<M-kPlus>', '⌥kPlus' },
+  { '<M-Up>', '⌥Up' },
+  -- <NL> 本身是 Ctrl-J；带修饰时不再叠加 ^ 前缀
+  { '<M-NL>', '⌥NL' },
 }
 
 for _, case in ipairs(cases) do
