@@ -241,10 +241,16 @@ function Panel:_toggle()
 
   local node = row.node
   if node.children and #node.children > 0 then
-    local folded = self.folded[node.id]
-    if folded == nil then folded = node.expanded == false end
+    local folded = self:_is_folded(node)
     self.folded[node.id] = not folded
     self:render()
+    if folded and node.navigable == 'folded' then self:_focus_node(node.children[1].id) end
+    return
+  end
+
+  -- 展开的 'folded' 分组标题行停不上去，在子项上切换即折叠该分组
+  if row.parent and row.parent.navigable == 'folded' then
+    self:_close_fold()
     return
   end
 
@@ -254,19 +260,45 @@ end
 function Panel:_open_fold()
   local row = self:_cursor_row()
   if not row then return end
-  if row.node.children and #row.node.children > 0 then
-    self.folded[row.node.id] = false
+  local node = row.node
+  if node.children and #node.children > 0 then
+    self.folded[node.id] = false
     self:render()
+    -- 展开后标题行不再可停留，光标直接进入第一个子项
+    if node.navigable == 'folded' then self:_focus_node(node.children[1].id) end
   else
     self:_open()
   end
+end
+
+---@param node VVTreePanelNode
+---@return boolean
+function Panel:_is_folded(node)
+  if not node.children or #node.children == 0 then return false end
+  local folded = self.folded[node.id]
+  if folded == nil then folded = node.expanded == false end
+  return folded
+end
+
+--- j/k 可停留的行：`navigable = false` 永不停留；`'folded'` 只在折叠时停留（展开后作为分组标签被跳过）
+---@return integer[]
+function Panel:_navigable_lines()
+  local lines = {}
+  for _, line in ipairs(self.row_lines) do
+    local node = self.rows[line].node
+    local navigable = node.navigable
+    if navigable == nil or navigable == true or (navigable == 'folded' and self:_is_folded(node)) then
+      lines[#lines + 1] = line
+    end
+  end
+  return lines
 end
 
 ---@param delta -1|1
 function Panel:_move(delta)
   if not self:is_open() then return end
 
-  local lines = self.row_lines
+  local lines = self:_navigable_lines()
 
   local current = vim.api.nvim_win_get_cursor(self.win)[1]
   local current_row = self.rows[current]

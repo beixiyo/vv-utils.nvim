@@ -21,6 +21,12 @@ peek.setup({
     ['<CR>'] = function() --[[ 确认跳转 ]] end,
     [']p'] = function() --[[ 下一个结果 ]] end,
   },
+  -- 底部边框按键提示：只做展示，须与 close_keys / keys 的实际映射保持一致
+  hints = {
+    { key = '<CR>', desc = 'Jump' },
+    { key = ']p', desc = 'Next' },
+    { key = 'q', desc = 'Close' },
+  },
 })
 
 peek.show({
@@ -57,6 +63,8 @@ peek.show({
 - 锚点：源光标下方优先，空间不足翻上方；`position = fun(ctx)` 可完全接管（editor 相对 0-based）
 - 尺寸：`width` / `height` / `min_*` / `max_*` 都接受 `number`、`{ ratio = n }` 或返回二者之一的 `fun(ctx)`。`ratio` 的基准由轴决定：宽度类为 editor 列数（`ctx.screen.columns`），高度类为 editor 可用行数（`ctx.screen.available`），与浮窗 `relative = 'editor'` 一致。它是字段的一种取值而不是独立字段，因此与 `width` / `height` 不存在互斥：`width = { ratio = 0.8 }` 是目标宽度，`max_width = { ratio = 0.8 }` 是宽度上限；最终仍按 `min ≤ 值 ≤ max` 夹取
 - 键位：`q` / `<Esc>` 关闭并回源窗口（`close_keys = false` 禁用）；`keys` 附加 buffer-local 键位
+- 按键提示：`hints`（默认 `false`）接受 `{ key, desc }[]` 或 `fun(ctx)`（宽高确定后调用），经 [`ui_window.key_hints`](../ui_window/README.md) 渲染到底部边框，`footer_pos` 默认 `'center'`；宽度不足时整条丢弃尾部条目，`VimResized` / `WinResized` 后按实际窗口宽度重算。`show` 的 `override.hints` 整体替换 setup 的列表（不按下标合并）
+- footer 与 `loading.win_text`：提示只在内容变化（hints 或截断结果）时写入，因此 `win_text({ slot = 'footer' })` 接管期间的 loading 帧不会被无变化的重算覆盖，stop 后恢复为提示；接管期间若尺寸变化导致提示重写，`win_text` 视为宿主改值，stop 后同样恢复为最新提示
 - 源窗口关闭时浮窗一并关闭；函数配置抛错或返回非法类型时回退默认值
 
 ## 边界

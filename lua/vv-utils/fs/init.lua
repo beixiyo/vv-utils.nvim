@@ -3,6 +3,7 @@
 local buffer = require('vv-utils.fs.buffer')
 local io = require('vv-utils.fs.io')
 local operations = require('vv-utils.fs.operations')
+local delete_async = require('vv-utils.fs.delete_async')
 local path = require('vv-utils.fs.path')
 local temp = require('vv-utils.fs.temp')
 local transaction = require('vv-utils.fs.transaction')
@@ -17,6 +18,7 @@ return {
   mkdir_p = operations.mkdir_p,
   create_file = operations.create_file,
   delete = operations.delete,
+  delete_async = delete_async.delete_async,
   rename = operations.rename,
   copy = operations.copy,
 

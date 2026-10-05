@@ -172,6 +172,15 @@ function M.ensure_unique_buffer_window(tab, buf, preferred)
   return keeper, closed
 end
 
+---按键提示 → 浮窗边框 title/footer chunks；宽度不足整条丢弃尾部条目，详见 ui_window/key_hints.lua
+---按需加载：只有用到提示的调用方才注册 VVKeyHint / VVKeyHintDesc 高亮
+---@param hints VVKeyHint[]
+---@param opts? VVKeyHintsOptions
+---@return [string, string][]? chunks 空列表或宽度不足时为 nil
+function M.key_hints(hints, opts)
+  return require('vv-utils.ui_window.key_hints').chunks(hints, opts)
+end
+
 ---@param win integer
 ---@param buf integer  buf 被销毁时自动 restore（BufWipeout / BufDelete）
 ---@param overrides? table<string, any>

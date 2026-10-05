@@ -1,47 +1,62 @@
 #!/bin/sh
-# 显式开发入口：隔离 Neovim 持久目录，并复用全局测试依赖缓存
+# 共享隔离入口。依赖策略由 tests/env.sh 负责
 set -eu
-runner_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo=${1:-.}
-if [ "$#" -gt 0 ]; then shift; fi
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
 if [ "$#" -gt 1 ]; then
   printf 'usage: %s <plugin-root> [literal-filter]\n' "$0" >&2
   exit 2
 fi
-repo=$(CDPATH= cd -- "$repo" && pwd)
+repo=$(CDPATH= cd -- "$repo" && pwd -P)
 export VV_TEST_REPO="$repo"
 
-# 返回调用者声明的源码目录；覆盖值相对原 cwd 解析，不在 child 换 cwd 后再猜路径
-# 用法：VAR=$(vv_test_source_path VAR /default/source)，由各仓 tests/env.sh 决定依赖策略
-vv_test_source_path() (
-  case "$1" in
-    ''|[0-9]*|*[!A-Z0-9_]*) printf '非法测试环境变量名：%s\n' "$1" >&2; exit 2 ;;
-  esac
-  eval "vv_source=\${$1-}"
-  vv_source=${vv_source:-$2}
-  if [ ! -d "$vv_source" ]; then
-    printf '找不到已安装的测试依赖：%s=%s；请准备该源码/runtime，或通过 %s 指定位置\n' "$1" "$vv_source" "$1" >&2
-    exit 1
-  fi
-  CDPATH= cd -- "$vv_source" && pwd
-)
+. "$runner_dir/paths.sh"
+vv_test_clean_environment
+vv_test_freeze_paths
+vv_test_path VV_UTILS "$runner_dir/../.." dev/test/run.sh dev/test/paths.sh lua/vv-utils/init.lua
 
-# 在 HOME/XDG 隔离前保存已有 runtime 与缓存位置；只接入数据，不加载个人 init.lua
-export VV_TEST_SITE="${VV_TEST_SITE:-${XDG_DATA_HOME:-$HOME/.local/share}/${NVIM_APPNAME:-nvim}/site}"
-if [ -d "$VV_TEST_SITE" ]; then
-  VV_TEST_SITE=$(vv_test_source_path VV_TEST_SITE "$VV_TEST_SITE")
+if [ -f "$repo/tests/env.sh" ]; then
+  . "$repo/tests/env.sh"
 fi
-export VV_TEST_DEPS_CACHE="${VV_TEST_DEPS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/nvim-test-deps}"
-# 共享层仅加载声明，不硬编码任何 vv 插件或语言工具链
-if [ -f "$repo/tests/env.sh" ]; then . "$repo/tests/env.sh"; fi
-scratch=$(mktemp -d "${TMPDIR:-/tmp}/vv-nvim-tests.XXXXXX")
-trap 'rm -rf "$scratch"' EXIT HUP INT TERM
+
+temporary_root=$(vv_test_absolute "${TMPDIR:-/tmp}")
+scratch=$(mktemp -d "$temporary_root/vv-nvim-tests.XXXXXX")
+child_pid=
+
+cleanup() {
+  rm -rf "$scratch"
+}
+
+# 信号退出仍视为失败；不能只做清理然后继续运行测试套件
+interrupted() {
+  trap '' HUP INT TERM
+  if [ -n "$child_pid" ]; then
+    "$NVIM_BIN" --headless -u NONE -i NONE -n -l "$runner_dir/stop.lua" "$child_pid" || :
+    # 测试进程可能阻塞在 RPC 或 Neovim 的优雅信号处理器中
+    # fixture 没有需要保留的用户缓冲区；明确终止本次拥有的进程
+    kill -KILL "$child_pid" 2>/dev/null || :
+    wait "$child_pid" 2>/dev/null || :
+  fi
+  exit "$1"
+}
+
+trap cleanup 0
+trap 'interrupted 129' HUP
+trap 'interrupted 130' INT
+trap 'interrupted 143' TERM
+
 mkdir -p "$scratch/home" "$scratch/tmp" "$scratch/runtime"
-export HOME="$scratch/home"
-export TMPDIR="$scratch/tmp"
-export XDG_RUNTIME_DIR="$scratch/runtime"
-export XDG_STATE_HOME="$scratch/state"
-export XDG_DATA_HOME="$scratch/data"
-export XDG_CACHE_HOME="$scratch/cache"
-export XDG_CONFIG_HOME="$scratch/config"
-"${NVIM_BIN:-nvim}" --headless -u NONE -i NONE -n -l "$runner_dir/run.lua" "$repo" "${1:-}"
+export HOME="$scratch/home" TMPDIR="$scratch/tmp" XDG_RUNTIME_DIR="$scratch/runtime"
+export XDG_STATE_HOME="$scratch/state" XDG_DATA_HOME="$scratch/data"
+export XDG_CACHE_HOME="$scratch/cache" XDG_CONFIG_HOME="$scratch/config"
+
+"$NVIM_BIN" --headless -u NONE -i NONE -n -l "$runner_dir/run.lua" "$repo" "${1:-}" &
+child_pid=$!
+status=0
+wait "$child_pid" || status=$?
+child_pid=
+exit "$status"

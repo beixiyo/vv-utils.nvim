@@ -7,7 +7,7 @@
 | 分类 | 函数 |
 |---|---|
 | 路径 | `exists(path)`、`is_directory(path)`、`is_dir_empty(path)`、`realpath(path)`、`unique_dest(destination)` |
-| 文件操作 | `mkdir_p(directory)`、`create_file(file)`、`delete(target)`、`rename(source, destination)`、`copy(source, destination)` |
+| 文件操作 | `mkdir_p(directory)`、`create_file(file)`、`delete(target)`、`delete_async(target, { on_done })`（分片异步，不冻结 UI，返回可 cancel 的 handle）、`rename(source, destination)`、`copy(source, destination)` |
 | 内容 | `read_all(file)`、`write_all(file, content, opts?)`、`load_json(source, opts?)`、`save_json(file, data, opts?)` |
 | 临时文件 | `temp.write(content, opts?)`、`temp.create(opts?)`、`temp.cleanup(paths)` |
 | buffer | `sync_buffers(old, new)`：文件移动后让已打开的 buffer 跟上，见 [sync_buffers](#sync_buffers) |
@@ -29,6 +29,7 @@
 - `write_all()`：`mode` 控制新文件权限，`directory_mode` 控制新建父目录权限，已有文件和目录保持原权限
 - `temp.write()` / `temp.create()`：独占创建，默认 `0600`；调用方持有路径，用幂等的 `temp.cleanup()` 清理
 - `is_directory()` 跟随软链接；`is_dir_empty()` 只读第一个成员，不是目录或读不了时返回 `nil, err`
+- `delete_async()` 在入口固定绝对目标（只解析父路径，目标 symlink 仍删链接本身）；每片开始重验父路径及已扫描目录的设备号 / inode。目录移动、入口替换或变为 symlink 时失败停止，已删除部分不回滚。底层仍是路径型 libuv API，这不是对外部进程在同一片内、系统调用之间改路径的原子隔离
 
 ## sync_buffers
 
@@ -140,3 +141,17 @@ handle.cancel() -- 幂等；取消后不再触发回调
 ## 事务
 
 `new_transaction()` 记录文件快照，写入前重验，失败时补偿回滚，并保留一层成功事务的撤回。通用状态机由 [`vv-utils.transaction`](../transaction/README.md) 提供，这里只负责文件读写、快照和未保存 buffer 检查。适合 WorkspaceEdit、批量重命名等需要原子语义的流程
+
+大批量写入用 `transaction:apply_async(entries, opts)` / `transaction:undo_async(opts)`：语义与同步版相同（全部预检 → 顺序写入 → 失败逆序回滚），每片按 `budget_ms`（默认 8）处理若干文件后经 uv timer 让出主线程，期间 loading 帧可以推进。默认写入带 fsync（macOS 上每个文件约 4ms），800 个文件同步 apply 会冻结约 3.5s
+
+```lua
+transaction:apply_async(entries, {
+  on_progress = function(p) loading:set_label(('%s %d/%d'):format(p.step, p.done, p.total)) end,
+  on_done = function(ok, err, touched) end, -- undo_async 为 (ok, err, count, touched)
+})
+```
+
+- `on_done` 一律异步触发且只触发一次；在途时再次调用（同步或异步）都以 busy 拒绝，不影响在途事务
+- `on_progress` 的 `step` 为 `validate` / `apply` / `compensate`（回滚与 undo 写回），切换步骤时 `done` 从 1 重新计数
+- 开始后不可取消：中途放弃会留下半写状态，调用方只能等待写完或回滚
+- 让出只发生在两个文件之间；预检与写入之间可能插入用户操作，因此每个文件写入前会复查未保存 buffer，出现则失败并回滚已写文件

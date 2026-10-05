@@ -55,6 +55,15 @@ require('vv-utils').setup({
 |---|---|
 | Foundation | [`path`](lua/vv-utils/path/README.md), [`glob`](lua/vv-utils/glob/README.md), [`yaml`](lua/vv-utils/yaml/README.md), [`timer`](lua/vv-utils/timer/README.md), [`callback`](lua/vv-utils/callback/README.md), [`color`](lua/vv-utils/color/README.md), [`hl`](lua/vv-utils/hl/README.md), [`animate`](lua/vv-utils/animate/README.md), [`transaction`](lua/vv-utils/transaction/README.md) |
 | Async and completion | [`async`](lua/vv-utils/async/README.md), [`process`](lua/vv-utils/process/README.md), [`completion`](lua/vv-utils/completion/README.md), [`blink`](lua/vv-utils/blink/README.md), [`path_completion`](lua/vv-utils/path_completion/README.md), [`match`](lua/vv-utils/match/README.md) |
-| Editor UI | [`tree_panel`](lua/vv-utils/tree_panel/README.md), [`ui_rows`](lua/vv-utils/ui_rows/), [`modal`](lua/vv-utils/modal/README.md), [`ui_peek`](lua/vv-utils/ui_peek/README.md), [`prompt`](lua/vv-utils/prompt/README.md), [`input`](lua/vv-utils/input/README.md), [`keys`](lua/vv-utils/keys/README.md), [`confirm`](lua/vv-utils/confirm/README.md), [`loading`](lua/vv-utils/loading/README.md), [`ui_window`](lua/vv-utils/ui_window/README.md), [`help_panel`](lua/vv-utils/help_panel/README.md), [`keymap`](lua/vv-utils/keymap/README.md), [`mouse`](lua/vv-utils/mouse/README.md), [`scroll`](lua/vv-utils/scroll/README.md) |
+| Editor UI | [`tree_panel`](lua/vv-utils/tree_panel/README.md), [`ui_rows`](lua/vv-utils/ui_rows/), [`modal`](lua/vv-utils/modal/README.md), [`ui_peek`](lua/vv-utils/ui_peek/README.md), [`ui_columns`](lua/vv-utils/ui_columns/README.md), [`prompt`](lua/vv-utils/prompt/README.md), [`input`](lua/vv-utils/input/README.md), [`keys`](lua/vv-utils/keys/README.md), [`confirm`](lua/vv-utils/confirm/README.md), [`loading`](lua/vv-utils/loading/README.md), [`ui_window`](lua/vv-utils/ui_window/README.md), [`help_panel`](lua/vv-utils/help_panel/README.md), [`keymap`](lua/vv-utils/keymap/README.md), [`mouse`](lua/vv-utils/mouse/README.md), [`scroll`](lua/vv-utils/scroll/README.md) |
 | Files and state | [`fs`](lua/vv-utils/fs/README.md), [`git`](lua/vv-utils/git/README.md), [`lsp`](lua/vv-utils/lsp/README.md), [`history`](lua/vv-utils/history/README.md), [`state`](lua/vv-utils/state/README.md), [`diagnostics`](lua/vv-utils/diagnostics/README.md), [`bufdelete`](lua/vv-utils/bufdelete/README.md), [`editor`](lua/vv-utils/editor/README.md) |
 | System and side effects | [`http`](lua/vv-utils/http/README.md), [`drop`](lua/vv-utils/drop/README.md), [`download`](lua/vv-utils/download/README.md), [`archive`](lua/vv-utils/archive/README.md), [`exec`](lua/vv-utils/exec/README.md), [`sys`](lua/vv-utils/sys/README.md), [`bigfile`](lua/vv-utils/bigfile/README.md), [`format`](lua/vv-utils/format/README.md) |
+
+## Development tests
+
+```sh
+./tests/run.sh [literal-filter]
+```
+
+Requires Neovim 0.12+, Git, POSIX shell, the tools listed in [tests](tests/README.md), and existing vv-icons sources for diagnostic fixtures (`VV_TEST_ICONS` overrides discovery). `VV_UTILS` defaults to this repository; `NVIM_BIN` selects Neovim. Tests use isolated child processes, not your personal configuration.
+See [test prerequisites](tests/README.md) and the [shared entry contract](dev/test/README.md).

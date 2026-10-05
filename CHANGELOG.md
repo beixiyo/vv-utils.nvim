@@ -1,48 +1,67 @@
 # Changelog
 
-## 0.8.0 - 2026-10-01
+## 0.8.0 - 2026-10-04
+
+### Breaking
+
+- **loading**：移除 `start`，改用 `mark`；`ticker` 改为返回 handle，停止时调用 `handle:stop()`
+- **loading**：`interval_ms` 必须为 >= 1 的整数，`frames` 必须为非空字符串列表
+- **loading.ticker**：`on_frame` 抛错改为捕获，不再抛给调用方
 
 ### Added
 
-- **fs.close_stale_buffers**：关闭指向已删除文件的未修改 buffer，LSP 收到 didClose；已修改的 buffer、`winfixbuf` 窗口里的 buffer 不关，不抛错
-- **bufdelete.replace_in_windows**：只把显示某 buffer 的窗口换成其它 buffer，不删除它
-- **file_operations**：新增 `will_rename_many_async` / `notify_did_rename_many`，多个文件合并为一次 LSP 请求或通知；单文件 API 不变
+- **fs.close_stale_buffers**：关闭指向已删除文件的未修改 buffer
+- **bufdelete.replace_in_windows**：替换窗口中显示的 buffer，但不删除原 buffer
+- **file_operations**：新增 `will_rename_many_async` / `notify_did_rename_many`，批量合并 LSP 文件改名
+- **loading.mark**：支持列号、多处共用 handle，以及 `label_hl` 分段上色
+- **loading.win_text**：在浮窗 title / footer 显示动画，停止时恢复原文与高亮，窗口关闭时自动停止
+- **loading.slot**：并发请求共用显示，计数归零才隐藏，旧请求释放不影响新请求
+- **loading.blocking**：同步执行前显示静态帧或 echo，透传返回值并在抛错时清理
+- **loading.ticker**：`on_frame` 返回 false 时停止
+- **sys.tmux_clients**：逐个判断 tmux 客户端是否经 SSH / mosh 远程连入
+- **timer.throttle**：新增 `opts.trailing`，在节流窗口结束时补执行最后一次调用
+- **mouse.redispatch_outside**：面板外鼠标事件切换窗口后可重映射重发
+- **ui_window.key_hints**：把按键提示渲染为浮窗 title / footer chunks
+- **ui_peek**：新增底部按键提示 `hints`（默认 `false`）与 `footer_pos`（默认 `'center'`）
+- **tree_panel**：新增节点 `navigable`（默认 `true`），设为 `'folded'` 时展开分组行会被 `j` / `k` 跳过
+- **fs**：新增事务 `apply_async` / `undo_async` 与分片递归删除 `delete_async`
+- **ui_columns**：新增不开窗口的文字对比排版器
+- **path.collapse_middle**：新增 `max_width`，默认 nil 不限宽
 
 ### Changed
 
-- **fs.sync_buffers**：改名后重读未修改的 buffer 以清除 notedited，之后 `:w` 不再报 E13
-  - **已修改的 buffer 绝不重读**：只改名，内容、undo、mark、磁盘全部不变，`:w` 仍报 E13，调用方需用 `write!`
-  - 重读会触发 BufReadPre/Post、FileType 等 autocmd，窗口内折叠会丢失
-  - `++enc` / `++ff`、readonly、光标与视图、undo 历史保持不变；手动 `vim.lsp.start` 附着的 client 会补附着
-  - 不重读（只改名）：buffer 已修改、`buftype` 非空、新路径不是可读的普通文件（含命名管道，不会阻塞）
-  - 重读时 autocmd 报错：恢复内容并 WARN，此时 notedited 不清除，`:w` 仍报 E13
-  - 边界详见 `lua/vv-utils/fs/README.md`
-- **测试 runner**：`tests/run.sh` 校验完成标记，测试中途退出（退出码仍为 0）不再被误判为通过
+- **fs.sync_buffers**：改名后重读未修改的普通文件 buffer，清除 notedited，避免 `:w` 报 E13
+- **fs.sync_buffers**：重读触发 BufReadPre/Post、FileType 等 autocmd 并丢失折叠，但保留编码、文件格式、readonly、视图与 undo，补附着手动启动的 LSP client
+- **loading**：实例共享时钟、帧同步，无订阅者时释放；`ticker.on_frame` 新增第二个参数 `label`
+- **sys.is_remote / is_remote_async**：远程判据与 `~/.local/bin/remote-session` 对齐
+- **ui_peek**：`hl.range` 默认值由 `Search` 改为 `CurSearch`
 
 ### Fixed
 
-- **fs.sync_buffers 不同步 LSP**：Neovim 内置 LSP 不处理 buffer 改名，旧路径永远收不到 didClose，服务端一直当它已打开。现在改名前 detach、改名后重新 attach，依次发旧 URI 的 didClose 和新 URI 的 didOpen（已修改 buffer 的 didOpen 带未保存内容）
-- **keys.display**：`<Bslash>` / `<Bar>` 显示为 `\` / `|`（原为 `Bslash` / `Bar`）；带修饰键时 `Bslash` / `Bar` / `lt` / `Space` / `CR` 同样还原，如 `<M-\>` → `⌥\`、`<C-Space>` → `^␠`、`<C-CR>` → `^↵`
-- **三个本机失败的测试**：`test_keys`、`test_lsp_code_actions`、`test_state`（后两者是测试对 macOS 与新版 Neovim 的假设不成立）
+- **fs.sync_buffers**：修复 buffer 改名后 LSP 未同步、旧路径收不到 didClose
+- **keys.display**：`<Bslash>` / `<Bar>` 正确显示为 `\` / `|`
+- **prompt**：spinner 自行停止后，再次 `set_busy(true)` 可以重建动画
+- **sys.is_remote_async**：判定或 callback 抛错不再被静默吞掉；命令超时 500ms 后 SIGKILL 并按失败处理，不再无限等待回调
+- **sys.is_remote / is_remote_async**：被信号终止的命令按失败处理，不再解析不完整输出
+- **sys.is_remote / tmux_clients**：命令超时返回 nil 时不再抛错，按失败处理；`ps` 不可用时仍以环境变量兜底
 
 ## 0.7.0 - 2026-09-30
 
 ### Added
 
-- **ui_peek**：通用内容浮窗。内容三种来源：`rows` 自绘行（复用 ui_rows 的 text/hl/chunks/virt_text，不经文件）、`lines` 纯文本、`uri`/`path` 文件快照；模块负责几何与锚点、语法高亮、落点高亮、键位与窗口生命周期；宽高/上下限/标题/锚点全部支持函数形态（收 ctx）；不继承全局 statuscolumn 自绘左列，默认显示原生行号；range 落点高亮 priority 5000，叠加在自绘行高亮与 treesitter 之上
-- **ui_peek**：尺寸字段（`width` / `height` / `min_*` / `max_*`）支持 `{ ratio = n }`
+- **ui_peek**：新增通用内容浮窗，支持自绘行、纯文本和文件快照、动态尺寸与锚点、语法和落点高亮，默认显示原生行号；尺寸支持 `{ ratio = n }`
 
 ## 0.6.2 - 2026-09-26
 
 ### Added
 
-- **sys.is_remote / is_remote_async**：判断是否为 ssh 远程
-- **fs.write_all**：新增 `fsync` 选项（默认 `true`），只关心崩溃一致性、不需要断电持久性的调用方可以关掉
+- **sys.is_remote / is_remote_async**：判断是否为 SSH 远程
+- **fs.write_all**：新增 `fsync`（默认 `true`），可关闭断电持久化
 
 ### Changed
 
-- **state 写盘提速**：锁文件与状态文件不再 fsync（macOS 上是 `F_FULLSYNC`），新旧值相同时跳过写入；`state:set` 从约 11ms 降到约 0.5ms
-- **行尾句号清理**：句号被 `*/`、`*/}`、`-->`、`]]` 等块注释结束符挡住时也能删除；围栏代码块内识别 `/*`、`*`、`{/*`、`<!--` 开头的注释行
+- **state**：锁文件与状态文件不再 fsync，相同值跳过写入，提升写盘速度
+- **行尾句号清理**：支持块注释结束符前的句号，以及围栏代码块中的注释行
 
 ## 0.6.1 - 2026-09-12
 
@@ -58,29 +77,29 @@
 
 ### Added
 
-- **modal**：新增通用多动作浮窗，统一选项渲染、键位规格化、高亮、取消和窗口生命周期；`confirm` 改为复用同一机制
-- **state**：新增跨 Neovim 实例共享的原子持久化状态，支持 compare-and-swap、文件变更订阅和跨进程锁
-- **ui_rows / tree_panel**：新增多行逻辑项渲染，光标定位、激活、导航和刷新均按逻辑节点工作
+- **modal**：新增通用多动作浮窗，`confirm` 复用同一交互与生命周期
+- **state**：新增跨 Neovim 实例共享的原子持久化状态，支持 compare-and-swap、文件订阅与跨进程锁
+- **ui_rows / tree_panel**：支持多行逻辑项渲染、导航、激活与刷新
 
 ### Changed
 
-- **fs.realpath**：统一解析符号链接、断链叶节点、相对目标及已存在祖先，供状态文件和文件操作使用稳定的规范路径
+- **fs.realpath**：统一解析符号链接、断链叶节点、相对目标和已存在祖先
 
 ### Fixed
 
-- **state 并发安全**：修复 `false` 值 compare-and-swap、订阅初始化窗口、符号链接别名锁分裂，以及过期锁回收期间可能误删新 owner 的竞争
-- **tree_panel**：修复多行节点导航重复停留、刷新位置偏移，以及 header / footer 行方向计算错误
+- **state**：修复 `false` 值 compare-and-swap、订阅初始化、符号链接锁分裂与过期锁回收竞争
+- **tree_panel**：修复多行节点导航重复停留、刷新偏移与 header / footer 方向计算
 
 ## 0.5.11 - 2026-09-02
 
 ### Added
 
-- **git 冲突原语**：新增七种 porcelain unmerged 状态识别，以及普通、diff3、zdiff3 冲突块的纯解析 API
-- **index stage diff**：`diff_lines` 支持成对比较同一路径的 index stage，并将行号投影到指定一侧；path 相对 `root` 解析，位于 `root` 下的绝对路径自动换算，任一 stage 不存在时回调 `nil`
+- **git**：新增七种 unmerged 状态识别，以及普通、diff3、zdiff3 冲突块解析 API
+- **diff_lines**：支持同一路径的 index stage 成对比较和行号投影，路径按 `root` 解析，缺失 stage 时回调 `nil`
 
 ### Changed
 
-- **冲突标记严格匹配**：只识别恰好七个标记字符且后接行尾或空格的行，`<<<<<<<<<<<<` 类分隔横幅与紧跟文本的行不再被当作冲突块
+- **冲突标记**：只匹配恰好七个标记字符且后接行尾或空格的行，避免误判分隔横幅与紧跟文本的行
 
 ## 0.5.10 - 2026-08-19
 
@@ -92,231 +111,214 @@
 
 ### Fixed
 
-- **keymap**：接管和归还映射时统一规范化特殊键表示，`<C-e>`、`<C-y>` 等被 Neovim 标准化大小写的控制键不再因所有权比对失败而残留
+- **keymap**：规范化特殊键表示，修复控制键因所有权比对失败而残留
 
 ## 0.5.8 - 2026-08-16
 
 ### Added
 
-- **callback**：新增 `limit(callback, max_calls?)`，统一回调调用次数限制、返回值透传与幂等失效
-- **process**：新增 `start(command, opts?, callback)`，统一 `vim.system` 启动失败、主循环投递、物理取消与取消后的回调压制
-- **archive**：新增跨平台 tar 归档列表与解压机制
-- **fs**：新增 `is_directory()`、`is_dir_empty()`；`write_all()` 支持通过 `directory_mode` 指定新建父目录权限
-- **fs**：新增 `temp.write()`、`temp.create()` 与 `temp.cleanup()`，统一受限临时文件的独占创建和幂等清理
-- **http**：新增安全的非流式 HTTP 请求、RFC 3986 query component 编码与 URL 参数拼接；支持超时、取消、状态码和响应头解析，并避免 URL、请求头及请求体进入进程参数
+- **callback.limit**：限制回调调用次数，透传返回值并支持幂等失效
+- **process.start**：统一进程启动失败处理、主循环回调、物理取消与取消后的回调压制
+- **archive**：新增跨平台 tar 归档列表与解压
+- **fs**：新增 `is_directory` / `is_dir_empty`，`write_all` 支持指定新建父目录权限 `directory_mode`
+- **fs.temp**：新增 `write` / `create` / `cleanup`，独占创建受限临时文件并幂等清理
+- **http**：新增可超时、可取消的非流式 HTTP 请求、query 编码与 URL 参数拼接，避免请求敏感信息进入进程参数
 
 ### Changed
 
-- **fs**：文件探测、信息渲染与目录扫描按职责拆分为 `file_probe`、`file_render`、`dir_scan`、`dir_render` 和 `file_info_highlight` 子模块
-- **git / path_completion / download**：统一复用 `vv-utils.process` 的进程启动与取消语义
-- **history**：持久化复用 `fs.write_all()` 的原子写入，并保持历史文件 `0600`、新建目录 `0700` 权限
+- **git / path_completion / download**：统一进程启动与取消语义
+- **history**：采用原子写入，保持文件 `0600`、新建目录 `0700` 权限
 
 ### Fixed
 
-- **download**：取消下载时即使 staging 文件暂时仍被进程占用，也会在底层进程退出后再次清理，避免 Windows 残留临时文件
+- **download**：取消后等待进程退出再补清理，避免 Windows 残留临时文件
 
 ## 0.5.7 - 2026-08-12
 
 ### Changed
 
-- **help_panel**：`actions` / `extra_rows` 支持可选的 `icon_hl`，标题图标支持可选的 `title_icon_hl`；未配置时分别继续使用 `VVHelpIcon` / `VVHelpTitle`，兼容现有调用方；标题根据最终浮窗内容宽度水平居中
-- **keys**：单字母大写键位展示为带 Shift 语义的 `⇧` 前缀，并与显式 `<S-...>` 写法保持一致
+- **help_panel**：新增 `icon_hl` / `title_icon_hl`，未配置时保持原高亮；标题按内容宽度居中
+- **keys**：单字母大写键位展示为 `⇧` 前缀，与显式 `<S-...>` 一致
 
 ## 0.5.6 - 2026-08-10
 
 ### Added
 
-- **confirm**：新增通用确认浮窗，支持消息与详情、危险级别、可配置确认/取消按键、语义高亮
+- **confirm**：新增支持详情、危险级别、可配置按键与语义高亮的确认浮窗
 - **transaction**：新增与业务无关的事务机制
-- **keys**：新增统一键位展示与提示格式化，支持修饰键、复合键和特殊键
+- **keys**：新增统一键位展示与提示格式化
 
 ### Changed
 
 - **exec**：新增 rust、go、zig 等解析
-- **help_panel / input**：统一使用 `keys` 生成键位展示文本
+- **help_panel / input**：统一使用 `keys` 展示键位
 
 ## 0.5.5 - 2026-08-08
 
 ### Fixed
 
-- **scroll 粘贴保护**：终端括号粘贴期间不再损坏内容。自动动画每帧由 `normal! N<C-e>` 驱动，而 `normal!` 会重入 Neovim 的输入处理
+- **scroll**：终端括号粘贴期间不再损坏内容
 
 ### Added
 
-- **scroll**：新增 `pasting()`，查询当前是否处于终端粘贴保护期
+- **scroll.pasting**：查询终端粘贴保护状态
 
 ## 0.5.4 - 2026-08-07
 
 ### Added
 
-- **fs**：新增目录统计 `inspect_dir` / `scan_dir` / `dir_info_lines`。递归扫描用显式 DFS 栈保存 scandir 句柄，按 entry 粒度检查预算后经 uv timer 让出事件循环，单片占用可控（89 万文件目录下主线程单次最长占用 18ms）；支持 `max_entries` 截断、`max_depth` 限深与随时 `cancel`，不跟随 symlink 因而不会成环
-- **fs**：`file_info_highlight` 增加 `pending` / `truncated` 分组与共享状态标记，让扫描中和被截断的数值不会被读成最终结果
+- **fs**：新增目录统计 `inspect_dir` / `scan_dir` / `dir_info_lines`，分片扫描支持截断、限深与取消，不跟随符号链接
+- **fs.file_info_highlight**：新增 `pending` / `truncated` 分组与状态标记，区分扫描中、截断和最终结果
 
 ## 0.5.3 - 2026-08-03
 
 ### Added
 
-- **async**：新增 `Scope` 请求生命周期管理。支持按 key 的 `latest` / `parallel` 并发模式、过期结果授权校验、owner 级 invalidate / cancel / dispose，以及 cancel 与 disposer 的一次性资源释放
+- **async.Scope**：新增请求生命周期管理，支持 `latest` / `parallel`、过期结果校验、invalidate / cancel / dispose 与一次性资源释放
 
 ### Changed
 
-- **文档**：模块用法与 API 说明移动到各模块目录的 `README.md`
+- **文档**：模块用法与 API 说明移至各模块目录的 `README.md`
 
 ## 0.5.2 - 2026-08-01
 
 ### Added
 
-- **git**：新增 `highlight_specs()`，返回共享 `VVGit*` 高亮静态基准的隔离副本，供调用方安全叠加配置并在重复 setup 时恢复默认值
+- **git.highlight_specs**：返回共享 `VVGit*` 高亮基准的隔离副本，支持安全叠加配置与重复 setup 恢复默认值
 
 ## 0.5.1 - 2026-07-30
 
 ### Added
 
-- **fs 文件探测**：新增 `inspect_file()` / `is_binary()`。新增 `file_info_lines()` 与 `highlight_file_info()`
+- **fs**：新增文件探测 `inspect_file` / `is_binary` 与信息展示 `file_info_lines` / `highlight_file_info`
 
 ### Changed
 
 - **format.project**：二进制判断复用 `vv-utils.fs`
-- **exec 错误信息**：未知文件类型与缺少可用 runner 的用户提示统一改为英文
+- **exec**：未知文件类型与缺少 runner 的错误提示统一为英文
 
 ## 0.5.0 - 2026-07-29
 
 ### Added
 
 - **completion / blink**：新增 buffer-local 补全 descriptor 与可选 `vv-utils.blink` source
-- **glob / path_completion**：新增框架无关的 `compile()` / `compile_list()` 结果
+- **glob / path_completion**：新增框架无关的 `compile` / `compile_list` 结果
 
 ### Changed
 
-- **path_completion**：最终候选默认上限从 200 收紧为 50；递归 `fd` 原始结果预算改为独立 `scan_max_items`（默认 1000），不再由 `max_items * 20` 隐式放大
-- **path_completion / blink**：descriptor 补全链支持异步 callback 与取消；当前目录分批扫描，递归 `fd` 不再同步等待或逐项 `fs_stat`
-- **glob**：`compile_rg()` / `compile_rg_list()` 改为通用编译结果之上的 ripgrep adapter
+- **path_completion**：候选默认上限由 200 改为 50，递归 `fd` 扫描预算改用 `scan_max_items`（默认 1000），不再由 `max_items * 20` 决定
+- **path_completion / blink**：支持异步补全与取消，目录分批扫描，递归 `fd` 不再同步等待
+- **glob**：`compile_rg` / `compile_rg_list` 改为通用编译结果上的 ripgrep adapter
 
 ### Fixed
 
-- **prompt 输入边界**：用双行结构守卫统一处理 `dd`、`dG` 等跨行删除；空输入继续按 Backspace 也不会越过输入行
-- **prompt label 间距**：icon 为空时不再保留无意义的图标后空格
+- **prompt**：跨行删除与空输入 Backspace 不再越过输入行，空 icon 不再留下多余空格
 
 ## 0.4.3 - 2026-07-29
 
 ### Added
 
-- **hl**：改为 `hl/init.lua` 文件夹模块并保持原公共入口兼容；新增 `register_dimmed(augroup, specs, opts?)`，从现有高亮派生向指定背景降低对比度的颜色，并在 `ColorScheme` 后重新计算
-- **color**：新增提供 `parse()`、`to_hex()`、`to_integer()`、`mix()` 与 `composite()`；统一支持 Neovim integer RGB、`#RGB[A]`、`#RRGGBB[AA]` 和 RGBA 对象
+- **hl.register_dimmed**：从现有高亮派生低对比度颜色，`ColorScheme` 后重新计算，原模块入口保持兼容
+- **color**：新增 `parse` / `to_hex` / `to_integer` / `mix` / `composite`，支持 Neovim RGB 整数、RGB(A) 十六进制与 RGBA 对象
 
 ## 0.4.2 - 2026-07-28
 
 ### Fixed
 
-- **fs.rename**：在大小写不敏感文件系统上，纯大小写改名（如 `README.MD` → `README.md`）不再被误判为目标已存在。仅当两条路径大小写等价且 `dev` / `ino` 确认指向同一个文件对象时放行；不同文件仍拒绝覆盖
+- **fs.rename**：大小写不敏感文件系统上的纯大小写改名不再误报目标存在，仍拒绝覆盖不同文件
 
 ## 0.4.1 - 2026-07-27
 
 ### Added
 
-- **keymap**：新增 buffer-local 映射生命周期管理。`attach(opts)` 按 `filetypes`、`enabled` 与自定义 `when` 条件接管映射；FileType 切换、`refresh()` 或 `detach()` 时只恢复仍由自身持有的映射，保留用户中途重绑的快捷键，并在 `BufWipeout` 自动清理内部状态
+- **keymap**：新增 buffer-local 映射 `attach` / `refresh` / `detach`，按条件接管并仅恢复自身持有的映射，保留用户重绑，buffer 销毁时自动清理
 
 ## 0.4.0 - 2026-07-27
 
 ### Changed
 
-- **lsp.code_actions**：同一阶段向全部 LSP 客户端并行请求 Code Action，并让 `textDocument/codeAction` 与 `codeAction/resolve` 共享单次绝对截止时间；多客户端不再按数量累计等待，超时后取消仍在进行的请求
-- **lsp.fix**：新增 `check_path_support(path, configs?)`，在创建临时 buffer 前检查 filetype、已启用配置与 LSP 可执行文件，缺少配置或可执行文件时立即返回结构化错误，避免无可用 LSP 时空转等待
-- **tree_panel**：将分散在实现模块中的公开类型集中到 `tree_panel/types/init.lua`，由模块入口统一加载；仅整理类型所有权，不改变运行时行为
+- **lsp.code_actions**：并行请求全部客户端，Code Action 与 resolve 共用截止时间，超时取消未完成请求
+- **lsp.fix.check_path_support**：创建临时 buffer 前检查 filetype、配置与可执行文件，缺少支持时立即返回结构化错误
 
 ### Breaking
 
-- **lsp.fix**：删除 `supports_path(path, configs?)`，调用方需改用返回 `(supported, error?)` 的 `check_path_support(path, configs?)`
+- **lsp.fix**：删除 `supports_path(path, configs?)`，改用返回 `(supported, error?)` 的 `check_path_support(path, configs?)`
 
 ## 0.3.3 - 2026-07-26
 
 ### Changed
 
-- **path**：新增 `find_root(path, opts?)`；项目根解析优先上层 `.git` 工作树标记，未命中时再回退到最近的跨语言包管理或构建 manifest，`get_root()` 复用该逻辑
+- **path.find_root**：新增项目根解析，优先上层 `.git`，再回退至最近的包管理或构建 manifest；`get_root` 复用该逻辑
 
 ## 0.3.2 - 2026-07-26
 
 ### Added
 
-- **state**：新增按插件 ID 与功能 key 隔离的 JSON 状态仓库；写入前合并最新磁盘快照，以 `0600` 权限原子保存，并拒绝静默覆盖损坏的状态文件
-- **tree_panel**：新增调用方驱动的通用树形侧栏，支持左右布局、稳定折叠、自定义渲染与快捷键、固定 winbar、Tree-sitter 片段高亮、预览跳转和持久宽度
-- **input**：新增无状态输入行装饰器，统一渲染 label、placeholder 与快捷键提示，并由调用方持有输入值和生命周期
+- **state**：新增按插件与功能隔离的 JSON 状态仓库，合并最新磁盘快照，以 `0600` 原子保存，拒绝覆盖损坏文件
+- **tree_panel**：新增通用树形侧栏，支持左右布局、稳定折叠、自定义渲染与键位、固定 winbar、语法高亮、预览跳转和持久宽度
+- **input**：新增输入行装饰器，渲染 label、placeholder 与键位提示，输入值和生命周期由调用方持有
 
 ### Changed
 
-- **prompt**：复用 `vv-utils.input` 渲染标签与 placeholder，保留既有浮窗和过滤生命周期
-- **fs**：JSON 读写支持严格解码与显式文件权限，供状态仓库安全持久化
-- **drop**：注册处理器和拖拽监听时返回幂等 disposer，并提供 teardown 释放 Kitty 监听、按 ownership 还原 `vim.paste`
-- **scroll**：新增 disable 生命周期，取消运行中的动画，并仅还原仍由模块持有的映射和 `mousescroll`
+- **prompt**：复用 `input` 渲染，保留既有浮窗与过滤生命周期
+- **fs**：JSON 读写支持严格解码与显式文件权限
+- **drop**：处理器和拖拽监听返回幂等 disposer，新增 teardown 释放 Kitty 监听并按 ownership 还原 `vim.paste`
+- **scroll**：新增 disable，取消动画并仅还原自身持有的映射与 `mousescroll`
 
 ## 0.3.1 - 2026-07-19
 
 ### Changed
 
-- 将大型工具按领域拆分为目录模块，并通过各领域的 `init.lua` 统一公开 API
-- 文件事务并入 `vv-utils.fs.new_transaction()`，删除独立的 `vv-utils.fs_transaction` 入口
+- **文件事务迁移**：删除 `vv-utils.fs_transaction` 入口，改用 `vv-utils.fs.new_transaction()`
 
 ## 0.2.1 - 2026-07-19
 
 ### Added
 
-- **path_completion**：新增不绑定 UI 的路径候选引擎。按光标识别顶层逗号分段，保留 `!` / `./` 和含空格路径，转义文件名中的 glob 特殊字符；分别支持 Include / Exclude 的文件与目录候选，以及 Cwd 的纯目录候选。未以 `./` 锚定的片段可通过 `fd` 按需补全任意深度路径，不创建常驻索引
+- **path_completion**：新增独立路径候选引擎，支持逗号分段、Include / Exclude / Cwd、含空格路径与 glob 转义，并可按需通过 `fd` 补全深层路径，无常驻索引
 
 ## 0.2.0 - 2026-07-19
 
 ### Added
 
-- **glob**：新增 VS Code 风格搜索 glob 编译。支持顶层逗号拆分、brace / 字符类 / 转义逗号、`./` 搜索根锚定、`!` 排除，并同时生成路径本体与目录后代 pattern，避免通过扩展名猜测文件/目录
-- **fs_transaction**：新增可实例化的文件内容事务。每个实例独立保存最近一次成功快照，统一负责全量预检、逐文件原子写入、写后校验、失败补偿回滚与单层撤回；默认拒绝覆盖未保存的 Neovim buffer
+- **glob**：新增 VS Code 风格搜索 glob 编译，支持逗号拆分、brace、字符类、转义、`./` 锚定与 `!` 排除，同时匹配路径及目录后代
+- **fs_transaction**：新增独立文件内容事务，支持原子写入、校验、失败回滚与单层撤回，默认拒绝覆盖未保存 buffer
 
 ## 0.1.0 - 2026-07-13
 
 ### Added
 
-- **lsp.fix**：新增可复用的 LSP 自动修复引擎。统一负责 filetype 识别、客户端冷启动等待、Code Action 双采样收敛、单文件原子应用和临时 buffer 清理；`files()` 以异步串行方式处理多文件
-
-- **mouse**：新增 `block_visual_drag(buf)`，给 nofile 面板挂 ModeChanged 守卫，禁止鼠标拖拽 / 多击进 visual。补 buffer-local Nop 的盲区——跨窗口「从别窗点进面板再拖 / 多击」时按下走源窗口 keymap，buffer-local 拦不住，守卫一旦进 visual 即退回 normal。caller：vv-explorer / vv-git（实现细节见模块注释）
-
-- **bigfile.is_big**：把大文件判定从 `setup()` 的 `.*` filetype detector 中抽成公开谓词 `is_big(buf, opts?)`（字节数超 `size` 或平均行长超 `line_length`，已标 `bigfile` 直接认定），detector 改为复用它（单一真源）。供其它模块在真正动手前自我设限——首个 caller 是 vv-log-hl（超大日志跳过逐行 badge 扫描）
-
-- **loading**：通用 buffer 行内 loading 动画（`vv-utils.loading`）。`start(opts)` 在指定 buffer 行末尾以 virt_text 渲染滚动帧动画，返回幂等 `stop()`；每次 `start()` 创建独立 namespace，多实例互不干扰。内置三套帧 preset：`braille`（⠋⠙⠹…，默认）/ `dots`（⣾⣽⣻…）/ `bounce`（▏▎▍…）；`opts.frames` 可完全自定义。关键选项：`interval_ms`（默认 80ms）、`hl`（默认 `'Comment'`）、`hl_mode`（默认 `'combine'`，透明背景）、`prefix`、`virt_text_pos`
-
-- **exec**：按文件类型解析执行命令（`vv-utils.exec.resolve(path, opts?)`）。优先级 **shebang（`/usr/bin/env` 透传）> 扩展名运行器优先级**，取首个 `executable()` 的运行器，返回 `{cmd, runner}` 纯数据（无副作用，运行交给调用方）。内置 `sh/bash/zsh/fish · ts/tsx/mts/cts · js/mjs/cjs · py · lua · rb · pl · php` 默认；`opts.runners` 深合并可增减扩展名 / 改优先级，`opts.shebang=false` 关 shebang
-- **git.root / git.root_async**：探测 git 仓库根（rev-parse --show-toplevel），同步 + 异步两版
-- **timer.debounce / timer.throttle 增加 `cancel` 句柄**：现返回 `(wrapped, cancel)`（向后兼容，旧 `local f = debounce(...)` 行为不变）。两者内部创建常驻 uv timer，过去无对外 close 接口 → 反复创建却不关闭会泄漏 timer 句柄。`cancel()` 幂等 `stop`+`close`，供调用方在不再使用时释放（如 vv-explorer 过滤 prompt 关闭时）
-
-- **fs.realpath**：把路径解析到「真实路径」，用于跨来源路径比对（symlink 一致性）。`uv.fs_realpath` 解析所有中间符号链接；路径不存在时（已删除 / 父级回溯）解析「最长存在的祖先」再拼回剩余段，使已删文件与其 buffer name（解析形）仍可对齐；完全无法解析则退回 `vim.fs.normalize(fnamemodify(':p'))`。解决 `vim.fs.normalize` / `fnamemodify(':p')`（保留 symlink 形）与 `nvim_buf_get_name`（已解析真实路径）口径不一致导致的「同一文件两种路径串」漏命中
-
-- **drop**：终端拖拽路径检测 + handler 分发（`vv-utils.drop`）。两条进入路径统一走 `dispatch(paths, pos)`：① 覆写 `vim.paste`，从 bracketed paste 检测绝对路径（`/`/`~` 开头，支持 shell-escaped / 引号 / `file://`），`pos=nil`（无坐标）；② **kitty DnD 协议（OSC 72，kitty ≥ 0.47）** 带落点 cell 坐标 + 拖拽移动事件流，`pos={x,y,op}`。`setup()` 启动探测（`t=q`），支持才 opt-in（`t=a`），移动回握手 `t=m:o=1`，drop 后拉 `text/uri-list`；不支持（含 tmux 内，tmux 不透传入站 OSC）静默回退路径 ①。`register(handler)` 签名扩为 `fun(paths, pos)`；新增 `on_drag(cb)` 订阅移动/离开（实时高亮落点用）；`setup({ kitty_dnd=false })` 关协议。内置默认 handler：Normal + 普通 buffer 下 `:edit` 打开文件。已验证：Kitty (Linux/macOS，含 DnD 落点)、Ghostty (Linux/GTK4)、Alacritty；已知限制：Ghostty macOS (AppKit) 不走 bracketed paste 无法拦截；kitty 落点需 nvim 直跑 kitty（脱 tmux）
-
-- **animate**：通用补间动画引擎（`vv-utils.animate`）。`add(from, to, cb, opts?)` / `del(id)` — uv_timer 驱动，支持 id 去重、int 取整、5 种内置 easing（linear / outQuad / outCubic / inQuad / inOutQuad）、duration 双模式（step_ms / total_ms）
+- **lsp.fix**：新增 LSP 自动修复引擎，支持客户端启动等待、Code Action 收敛、单文件原子应用与临时 buffer 清理，`files` 异步串行处理多文件
+- **mouse.block_visual_drag**：阻止 nofile 面板鼠标拖拽或多击进入 Visual，包括跨窗口操作
+- **bigfile.is_big**：公开按字节数、平均行长或已有 bigfile 标记判定大文件的谓词
+- **loading.start**：新增 buffer 行内动画，返回幂等停止函数，支持独立多实例、内置帧与自定义帧
+- **exec.resolve**：按 shebang 优先、扩展名次之选择首个可用 runner，仅返回命令数据，不执行
+- **git.root / root_async**：新增同步与异步 Git 根目录探测
+- **timer.debounce / throttle**：返回 `(wrapped, cancel)`，兼容旧调用；幂等 `cancel()` 用于释放 timer
+- **fs.realpath**：解析符号链接及最长存在祖先，使已删除文件与 buffer 路径仍可一致比对
+- **drop**：新增终端拖拽路径分发，覆写 `vim.paste` 检测路径，普通 buffer 的 Normal 模式下默认打开文件；Kitty ≥ 0.47 支持落点与移动事件，`register` 接收 `(paths, pos)`，新增 `on_drag`，可用 `kitty_dnd=false` 关闭协议
+- **drop 兼容性**：Kitty 落点需脱离 tmux，不支持协议时回退粘贴检测；Ghostty macOS 不走 bracketed paste，无法拦截
+- **animate**：新增 `add` / `del` 补间动画，支持去重、取整、内置 easing 与步长或总时长模式
+- **fs.load_json / save_json**：新增 JSON 读写与字符串解析，文件不存在时返回空表，自动创建父目录
 
 ### Changed
 
-- **diagnostics.symbol_for：诊断徽标改用 `vv-icons` 图标 + `Diagnostic*` 高亮**：`symbol_for(counts)` 仍只按最高 severity 返回一个 `{ glyph, hl }`，但优先从 `vv-icons` 读取 `diagnostics_error/warn/info/hint`，颜色直接沿用 `DiagnosticError/Warn/Info/Hint`。未安装 `vv-icons` 时保留旧的 `E/W/I/H + VVDiag*` fallback，避免独立消费 vv-utils 的插件硬依赖图标库
-- **git：`VVGitRenamed` 配色 `#73c991` → `#4ec9b0`（青绿）**：原亮绿与 `VVGitUntracked`（同 `#73c991`）、`VVGitAdded`（`#81b88b` 灰绿）同属绿色系，R/C 状态在面板里难分辨。改青绿后三者拉开区分。色值是所有 vendor（vv-explorer / vv-git / statuscol）git 状态色的单一真相来源，一处改全局生效
-- **sys.open_default：补错误处理 + 返回值**：`vim.ui.open` 失败（无可用 opener，如纯 headless / 无 GUI 的 SSH）时 `vim.notify` 报错而非静默吞错，并返回 `boolean ok`（向后兼容，旧调用忽略返回值即可）。文档明确语义：目录→系统文件管理器、文件→默认程序
-- **sys.open_default：niri 焦点跟随**：niri 默认丢弃应用的 xdg-activation 聚焦请求（如已开 Firefox 里开新标签不抢焦点）。`$NIRI_SOCKET` 存在时，打开后异步经 `xdg-mime` 解析默认处理程序、轮询 `niri msg --json windows` 按 app_id（标题含文件名优先）定位并 `focus-window` 聚焦回来；非 niri 环境完全无副作用
-- **help_panel：action 名 snake_case → 空格分隔**：渲染时自动将 `cd_to` 显示为 `cd to`，不影响 actions 表查表逻辑
-- **help_panel：`<C-X>` → `<C-x>` 归一化**：Neovim 对 Ctrl 键统一存大写，渲染时还原为小写（Ctrl 不区分大小写）；`<M->`/`<S->` 保持原样
+- **diagnostics.symbol_for**：优先使用 `vv-icons` 与 `Diagnostic*` 高亮，未安装图标库时保留 `E/W/I/H + VVDiag*` fallback
+- **git**：共享 `VVGitRenamed` 配色由 `#73c991` 改为 `#4ec9b0`，区分重命名与新增、未跟踪状态
+- **sys.open_default**：打开失败时通知报错并返回 `boolean ok`；niri 环境打开后异步聚焦默认程序，非 niri 无额外副作用
+- **help_panel**：action 名中的下划线显示为空格，Ctrl 键展示归一为小写，不影响查表
 
 ### Fixed
 
-- **lsp.code_actions**：不再把 `textDocument/codeAction`、`codeAction/resolve` 的等待失败或 LSP `ResponseError` 静默折叠为 `no_quickfixes`；失败客户端立即停止后续请求，瞬时 timeout/interrupted 仅在整体 deadline 内重试，任一终局错误都会阻止部分编辑落盘
-- **lsp.fix**：二进制文件在内容嗅探前仅读取 4KB 并检查 NUL，避免“前 100 行”意外读入无换行的大文件
-
-- **format.apply_to_buffer：nvim_buf_set_lines 前判 modifiable，nomodifiable/只读 buffer 上不再抛 E21，改友好 WARN 返回**
-- **drop.try_resolve_path：先按原始路径 fs_stat、未命中再 shell_unescape 后备，不再误删 Kitty 等原始路径里的字面反斜杠**
-- **animate：缓动循环从 i=0 起（d=step_count-1），首帧等于 from，消除动画起步突变**
-- **fs.exists：改用 fs_lstat（不跟随软链），broken symlink 不再被判为不存在，rename/create/unique_dest 的冲突检查不再被越过而静默覆盖软链**
-- **fs.read_all：循环补读到读满/EOF，修复 fs_read 短读（>2GB / 网络 FS / 信号中断）时静默返回截断内容**
-- **fs.sync_buffers：`nvim_buf_set_name` 包 pcall，目标名已被其它 loaded buffer 占用（E95）时不再冒泡中断调用方的后续 UI 刷新**
-- **fs.copy：dst 位于 src 子树内时硬报错，杜绝复制目录进自身导致的无限递归（写满磁盘）**
-- **fs.copy：新增 `st.type == 'link'` 分支，软链照原样重建（`fs_readlink` + `fs_symlink`）而非跟随复制目标。修复递归复制含「指向目录的软链」子项时 `fs_copyfile` 报 EISDIR 整树失败、半拷贝残留的问题**
-- **fs.rename（EXDEV 降级）：跨分区移动/回收软链不再被物化成「目标字节的普通文件」**：原 copy+delete 降级走 `fs_copyfile` 跟随软链、把目标内容拷成普通文件再删原链，与同分区 `fs_rename`（保留软链）行为按文件系统边界静默分叉；现复用 fs.copy 的 link 分支，跨分区也保留软链及其（相对/绝对）目标
-- **help_panel：collect() 把未列入 `categories` 的孤儿 `cat` 重映射到 'Other'**：actions meta 可声明任意 cat，但渲染只遍历 `ordered_cats`，某 cat 仅出现在 meta、未在 `categories` 声明时整段 keymap 被静默丢弃（违反文档「未提及的分类归入 'Other'」契约）；现在插入前兜底到始终渲染的 'Other' 桶，`key_w` 也只计可见行
-- **timer.throttle：fn 抛错后 `running` 永久卡死、节流彻底失效**：`fn` 未 pcall 且在「启动复位 timer」之前同步调用，一旦抛错控制流逃逸 → 复位 timer 永不 `start`、`running` 永远停在 true，之后所有调用都被开头的 `if running then return` 挡掉。改为**先安排复位 timer 再调 `fn`**：fn 抛错仍向上传播（与原行为一致），但 `running` 必在 `limit` 毫秒后复位、节流自动恢复
-
-### Added
-
-- **fs.load_json / fs.save_json**：通用 JSON 持久化工具，支持文件路径读写和 JSON 字符串解析，文件不存在自动返回空表，父目录不存在自动创建
+- **lsp.code_actions**：请求失败不再误报 `no_quickfixes`，仅在总截止时间内重试瞬时错误，终局错误阻止部分编辑落盘
+- **lsp.fix**：二进制嗅探仅先读取 4KB，避免无换行大文件被大量读入
+- **format.apply_to_buffer**：不可修改 buffer 不再抛 E21，改为 WARN 返回
+- **drop.try_resolve_path**：优先检查原始路径，避免误删文件名中的字面反斜杠
+- **animate**：首帧等于起始值，消除起步突变
+- **fs.exists**：正确识别断链，避免冲突检查漏过并覆盖软链
+- **fs.read_all**：补读至读满或 EOF，避免短读返回截断内容
+- **fs.sync_buffers**：目标名被 loaded buffer 占用时不再抛错中断后续刷新
+- **fs.copy**：拒绝复制目录到自身子树，软链原样复制，避免递归失控或整树复制失败
+- **fs.rename**：跨分区移动软链时保留链接及目标，不再物化为普通文件
+- **help_panel**：未声明的分类归入 `Other`，不再丢失对应快捷键
+- **timer.throttle**：回调抛错仍向上传播，但节流窗口结束后恢复，不再永久失效

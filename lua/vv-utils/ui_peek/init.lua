@@ -4,17 +4,19 @@
 -- 落点高亮、键位和窗口生命周期全部由本模块负责；调用方只决定内容、落点与
 -- 交互策略（LSP 请求、多结果切换等）。全局单浮窗：新 show 复用窗口并替换内容
 -- 快照是 nofile buffer，浮窗窗口选项不继承全局 statuscolumn 等自绘左列
+-- hints 渲染为底部边框 footer：按窗口宽度整条截断，窗口尺寸变化时重算
 
 require('vv-utils.ui_peek.types')
 
 local UIRows = require('vv-utils.ui_rows')
+local UIWindow = require('vv-utils.ui_window')
 
 local M = {}
 
 local namespace = vim.api.nvim_create_namespace('vv-utils.ui_peek')
 local group = vim.api.nvim_create_augroup('VVUtilsUiPeek', { clear = true })
 
-local state = nil ---@type table? { win, buf, source_win, hl_buf, applied_keys, on_close }
+local state = nil ---@type table? { win, buf, source_win, hl_buf, applied_keys, on_close, hints, footer, footer_pos, footer_applied_pos }
 
 ---@type VVUiPeekConfig
 local defaults = {
@@ -34,8 +36,10 @@ local defaults = {
   },
   close_keys = { 'q', '<Esc>' },
   keys = {},
-  hl = { line = 'CursorLine', range = 'Search' },
+  hl = { line = 'CursorLine', range = 'CurSearch' },
   max_lines = 0,
+  hints = false,
+  footer_pos = 'center',
 }
 local config = vim.deepcopy(defaults)
 
@@ -263,6 +267,29 @@ local function highlight(buf, item, lines, cfg)
   end
 end
 
+---按当前宽度把 hints 写进 footer 的配置片段；与上次写入相同返回 nil，避免覆盖他人临时接管的 footer
+---（例如 loading.win_text 期间：它在 stop 时只恢复自己写入前读到的值）
+---@param width integer
+---@return table? patch nvim_win_set_config 片段
+local function footer_patch(width)
+  local chunks = state.hints and UIWindow.key_hints(state.hints, { max_width = width }) or nil
+  if vim.deep_equal(chunks, state.footer) and (not chunks or state.footer_applied_pos == state.footer_pos) then
+    return nil
+  end
+  state.footer = chunks
+  state.footer_applied_pos = state.footer_pos
+  -- nvim 不接受空 chunk 数组；'' 清空 footer，此时不能单独传 footer_pos
+  if not chunks then return { footer = '' } end
+  return { footer = chunks, footer_pos = state.footer_pos }
+end
+
+---窗口尺寸变化后重算 footer 截断
+local function refresh_footer()
+  if not (state and state.win and vim.api.nvim_win_is_valid(state.win)) then return end
+  local patch = footer_patch(vim.api.nvim_win_get_width(state.win))
+  if patch then pcall(vim.api.nvim_win_set_config, state.win, patch) end
+end
+
 local function clear_keymaps(buf, applied)
   for _, lhs in ipairs(applied or {}) do
     pcall(vim.api.nvim_buf_del_keymap, buf, 'n', lhs)
@@ -303,7 +330,12 @@ function M.show(item, override)
   item.enter = item.enter ~= false
   -- 自绘行坐标即字节坐标；文件/uri 内容才需要 LSP offset encoding
   if item.rows ~= nil and item.encoding == nil then item.encoding = 'utf-8' end
-  local cfg = override and vim.tbl_deep_extend('force', config, override) or config
+  local cfg = config
+  if override then
+    cfg = vim.tbl_deep_extend('force', config, override)
+    -- 列表不能按下标深合并，否则较短的 override.hints 会残留 setup 的尾部条目
+    if override.hints ~= nil then cfg.hints = override.hints end
+  end
 
   local rendered = render_rows(item)
   local lines = rendered and vim.tbl_map(function(entry) return entry.text end, rendered) or read_lines(item)
@@ -347,8 +379,15 @@ function M.show(item, override)
   local ctx = context(buf, lines, item, filetype)
   local win_config = geometry(ctx, cfg, item)
 
+  local hints = resolve(cfg.hints, ctx, nil)
+  state.hints = type(hints) == 'table' and hints or nil
+  state.footer_pos = cfg.footer_pos
+
   local win = state.win
   if not win or not vim.api.nvim_win_is_valid(win) then
+    -- 新窗口没有任何 footer，按 nil 基线计算
+    state.footer = nil
+    win_config = vim.tbl_extend('force', win_config, footer_patch(ctx.width) or {})
     win = vim.api.nvim_open_win(buf, item.enter, win_config)
     state.win = win
     for key, value in pairs(cfg.win_options or {}) do
@@ -356,7 +395,7 @@ function M.show(item, override)
     end
   else
     if vim.api.nvim_win_get_buf(win) ~= buf then vim.api.nvim_win_set_buf(win, buf) end
-    vim.api.nvim_win_set_config(win, win_config)
+    vim.api.nvim_win_set_config(win, vim.tbl_extend('force', win_config, footer_patch(ctx.width) or {}))
   end
   if item.enter and vim.api.nvim_get_current_win() ~= win then
     vim.api.nvim_set_current_win(win)
@@ -386,6 +425,7 @@ function M.show(item, override)
       if state and state.source_win == item.source_win then M.close(false) end
     end,
   })
+  vim.api.nvim_create_autocmd({ 'VimResized', 'WinResized' }, { group = group, callback = refresh_footer })
   return { win = win, buf = buf, source_win = item.source_win }
 end
 
@@ -436,6 +476,11 @@ function M.setup(opts)
   assert(type(config.win_options) == 'table', 'win_options must be a table')
   assert(type(config.hl) == 'table', 'hl must be a table')
   assert(config.max_lines == nil or type(config.max_lines) == 'number', 'max_lines must be a number')
+  assert(
+    config.hints == false or type(config.hints) == 'table' or type(config.hints) == 'function',
+    'hints must be a hint list, function or false'
+  )
+  assert(vim.tbl_contains({ 'left', 'center', 'right' }, config.footer_pos), 'footer_pos must be left, center or right')
 end
 
 ---查询配置副本

@@ -1,6 +1,6 @@
 -- vv-utils.ui_peek 类型定义（仅注释，无运行时逻辑）
 
----尺寸维度的取值：固定格数、按 editor 比例，或由函数按上下文返回前两者之一。
+---尺寸维度的取值：固定格数、按 editor 比例，或由函数按上下文返回前两者之一
 ---ratio 基准由轴决定：宽度类为 editor 列数，高度类为 editor 可用行数
 ---@alias VVUiPeekSize number|VVUiPeekRatio|fun(ctx:VVUiPeekContext):(number|VVUiPeekRatio)
 
@@ -22,9 +22,11 @@
 ---@field close_keys? string[]|false 关闭浮窗并回源窗口的键位；false 禁用默认键 @default { 'q', '<Esc>' }
 ---@field keys? table<string,fun()|false> 快照 buffer 上的附加键位；回调无参，false 禁用单个键
 ---@field position? fun(ctx:VVUiPeekContext):{anchor:string,row:number,col:number} 自定义锚点（editor 相对 0-based）；缺省为源光标下方优先、空间不足翻上方
----@field hl? {line?:string,range?:string} 落点行与范围高亮组 @default { line = 'CursorLine', range = 'Search' }
+---@field hl? {line?:string,range?:string} 落点行与范围高亮组 @default { line = 'CursorLine', range = 'CurSearch' }
 ---@field max_lines? integer 从 uri/path 读取的行上限，0 表示全部 @default 0
 ---@field on_close? fun() 浮窗关闭（任何路径）后的回调，用于调用方清理会话状态
+---@field hints? VVKeyHint[]|fun(ctx:VVUiPeekContext):VVKeyHint[]|false 底部边框的按键提示（经 ui_window.key_hints 渲染，key/desc 分别用 VVKeyHint/VVKeyHintDesc）；宽度不足时整条丢弃尾部条目，窗口尺寸变化时重算；函数形态在宽高确定后调用；只做展示，实际映射仍由 close_keys/keys 决定 @default false
+---@field footer_pos? 'center'|'left'|'right' 提示 footer 对齐 @default 'center'
 
 ---@class VVUiPeekItem
 ---@field rows? (VVUIRowsRow|string)[] 自绘内容行（text/hl/chunks/virt_text，同 ui_rows）；与 lines/uri/path 互斥。坐标即物理行与字节列，不叠加语法高亮，除非显式给 filetype

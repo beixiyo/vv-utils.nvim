@@ -39,18 +39,13 @@ function M.norm(path)
   return path
 end
 
----折叠路径中间层级，保留开头与末尾指定数量的层级
+---按固定层级折叠一次，不考虑宽度
 ---@param path string
----@param opts? vv-utils.path.CollapseMiddleOpts
+---@param head integer
+---@param tail integer
+---@param ellipsis string
 ---@return string
-function M.collapse_middle(path, opts)
-  opts = opts or {}
-
-  if path == '' then return '' end
-
-  local head = math.max(math.floor(opts.head or 1), 0)
-  local tail = math.max(math.floor(opts.tail or 3), 0)
-  local ellipsis = opts.ellipsis or '…'
+local function collapse_once(path, head, tail, ellipsis)
   local separator = path:find('\\', 1, true) and not path:find('/', 1, true) and '\\' or '/'
   local prefix = ''
   local body = path
@@ -81,6 +76,39 @@ function M.collapse_middle(path, opts)
   end
 
   return prefix .. table.concat(result, separator) .. (trailing_separator and separator or '')
+end
+
+---折叠路径中间层级，保留开头与末尾指定数量的层级
+---
+---传入 `max_width` 时按显示宽度（`strdisplaywidth`，CJK 占 2 列）逐级退化：
+---先按 `head` / `tail` 折叠，超宽则 `tail` 逐级减到 1，最后 `head` 降为 0
+---（`…/文件名`）；返回第一个放得下的结果，全部超宽时返回最后一级，不截断字符
+---@param path string
+---@param opts? vv-utils.path.CollapseMiddleOpts
+---@return string
+function M.collapse_middle(path, opts)
+  opts = opts or {}
+
+  if path == '' then return '' end
+
+  local head = math.max(math.floor(opts.head or 1), 0)
+  local tail = math.max(math.floor(opts.tail or 3), 0)
+  local ellipsis = opts.ellipsis or '…'
+  local max_width = opts.max_width
+
+  local candidate = collapse_once(path, head, tail, ellipsis)
+  if not max_width then return candidate end
+
+  local function fits(text) return vim.fn.strdisplaywidth(text) <= max_width end
+  if fits(candidate) then return candidate end
+
+  local min_tail = math.min(tail, 1)
+  for keep = tail - 1, min_tail, -1 do
+    candidate = collapse_once(path, head, keep, ellipsis)
+    if fits(candidate) then return candidate end
+  end
+  if head > 0 then candidate = collapse_once(path, 0, min_tail, ellipsis) end
+  return candidate
 end
 
 local function start_directory(path)
@@ -129,6 +157,7 @@ end
 ---@field head? integer 保留的开头层级数 @default 1
 ---@field tail? integer 保留的末尾层级数 @default 3
 ---@field ellipsis? string 省略标记 @default '…'
+---@field max_width? integer 可用显示列数；超宽时 tail 逐级减到 1、最后 head 降为 0，仍超宽返回最短一级。nil 不限宽 @default nil
 
 ---@class vv-utils.path.FindRootOpts
 ---@field markers? string[] Git 未命中时向上搜索的 manifest 名称 @default 内置跨语言 manifest 列表

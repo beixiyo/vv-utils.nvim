@@ -32,4 +32,6 @@ panel:toggle()
 
 `toolbar.items` 声明固定快捷键提示。TreePanel 使用独立工具栏窗口按当前宽度完整换行，工具栏不覆盖正文且不随正文滚动；`position` 默认为 `'top'`，可设为 `'bottom'` 固定在底部。`key` 使用 Neovim 键位记号并统一由 `vv-utils.keys` 格式化。可通过 `padding`、`separator`、`key_hl` 与 `label_hl` 调整展示
 
+节点 `navigable` 控制 `next_item` / `prev_item`（`j` / `k`）是否停留：默认 `true`；`false` 永不停留；`'folded'` 适合文件分组这类标签行——展开时被跳过、折叠时可停留，`open_node` / `toggle_node` 展开后光标直接进入第一个子项，在子项上 `toggle_node` 会折叠所属分组（`close_node` 原本就会）
+
 渲染完全由 `render.header`、`node`、`empty`、`footer`、`winbar` 决定，均可返回纯文本或高亮 chunks；`winbar = false` 清空固定顶部栏。模块本身不强加 keymap，也不拥有节点数据

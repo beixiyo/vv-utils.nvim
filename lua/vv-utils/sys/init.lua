@@ -165,9 +165,11 @@ function M.open_default(path)
   return true
 end
 
---- 当前 nvim 是否正被 SSH 远程驱动（含本机 tmux 被 SSH attach 的情形），见 sys/remote.lua
+--- 当前 nvim 是否正被远程（SSH / mosh）驱动（tmux 内外通用），见 sys/remote.lua
 M.is_remote = require('vv-utils.sys.remote').is_remote
 --- is_remote 的异步版本，callback(remote) 在主循环中调用
 M.is_remote_async = require('vv-utils.sys.remote').is_remote_async
+--- 在连 tmux 客户端逐个判定是否经远程连入（机制，「任一 / 全部」由调用方决定），见 sys/remote.lua
+M.tmux_clients = require('vv-utils.sys.remote').tmux_clients
 
 return M

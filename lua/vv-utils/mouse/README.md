@@ -6,7 +6,9 @@
 
 ## API 与边界
 
-`block_visual_drag(buf)` 为指定 buffer 安装 ModeChanged 防护与 buffer-local 拦截。它只应在临时 UI buffer 调用；普通文件 buffer 的鼠标选择语义不会被改动，也不应通过这个模块全局禁用 Visual 模式
+`block_visual_drag(buf)` 为指定 buffer 安装 ModeChanged 防护与 buffer-local 拦截
+
+`redispatch_outside(win, key)` 放在 buffer-local 鼠标映射回调的开头：Neovim 按按键时的当前 buffer 查鼠标映射，焦点在面板时点别的窗口也会进面板映射。返回 true（事件不在 `win` 内，已交还给鼠标所在窗口或被吞掉）时调用方直接 return，返回 false 才执行面板动作。它只应在临时 UI buffer 调用；普通文件 buffer 的鼠标选择语义不会被改动，也不应通过这个模块全局禁用 Visual 模式
 
 ## 使用
 

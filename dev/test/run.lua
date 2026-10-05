@@ -9,21 +9,31 @@ local function main()
   if vim.env.VV_TEST_DEPS_CACHE then
     vim.env.VV_TEST_DEPS_CACHE = vim.fn.fnamemodify(vim.env.VV_TEST_DEPS_CACHE, ':p'):gsub('/$', '')
   end
+
   vim.env.VV_UTILS = utils
   vim.env.VV_TEST_REPO = repo
   vim.cmd.cd(vim.fn.fnameescape(repo))
+  -- 即使调用方提供 pack 根目录，也不自动加载个人 package
+  vim.opt.packpath = ''
+  dofile(runner .. '/runtime.lua').apply()
   vim.opt.runtimepath:prepend(repo)
   vim.opt.runtimepath:prepend(utils)
   local deps = dofile(vim.fs.joinpath(runner, 'deps.lua'))
   vim.opt.runtimepath:prepend(deps.ensure_mini_test())
+
   local MiniTest = require('mini.test')
   MiniTest.setup()
   local cases = MiniTest.collect({
     emulate_busted = false,
-    find_files = function() return vim.fn.glob('tests/**/test_*.lua', false, true) end,
-    filter_cases = function(case) return table.concat(case.desc, ' | '):find(filter, 1, true) ~= nil end,
+    find_files = function()
+      return vim.fn.glob('tests/**/test_*.lua', false, true)
+    end,
+    filter_cases = function(case)
+      return table.concat(case.desc, ' | '):find(filter, 1, true) ~= nil
+    end,
   })
   assert(#cases > 0, 'no test cases matched: ' .. filter)
+
   -- parent 的 RPC socket 临时目录按 suite 持有，不能在首个 case 清理时一并删除
   vim.fn.tempname()
   local reporter = MiniTest.gen_reporter.stdout({ quit_on_finish = false })
@@ -33,18 +43,29 @@ local function main()
     finish()
     finished = true
   end
+
   MiniTest.execute(cases, { reporter = reporter })
-  local completed = vim.wait(300000, function() return finished end, 10)
+  local completed = vim.wait(300000, function()
+    return finished
+  end, 10)
   MiniTest.stop()
   assert(completed, 'test suite timed out after 300 seconds')
+
   for _, case in ipairs(cases) do
-    if not case.exec or #case.exec.fails > 0 then return false end
+    if not case.exec or #case.exec.fails > 0 then
+      return false
+    end
   end
   return true
 end
 
 local ok, result = xpcall(main, debug.traceback)
 local MiniTest = package.loaded['mini.test']
-if MiniTest then pcall(MiniTest.stop) end
-if not ok then io.stderr:write(tostring(result) .. '\n') end
+if MiniTest then
+  pcall(MiniTest.stop)
+end
+
+if not ok then
+  io.stderr:write(tostring(result) .. '\n')
+end
 vim.cmd((ok and result) and '0cquit' or '1cquit')

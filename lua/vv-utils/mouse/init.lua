@@ -54,4 +54,25 @@ function M.block_visual_drag(buf)
   })
 end
 
+---buffer-local 鼠标映射的入口守卫：鼠标事件不在面板窗口内时，把它交还给鼠标所在的窗口
+---
+---Neovim 按「按键时的当前 buffer」查鼠标映射：焦点在面板时右键点编辑区，会先进面板的
+---buffer-local 映射，回调里的 getmousepos 指向的却是编辑区的行。守卫返回 true 时调用方必须直接 return：
+---  · 鼠标在其他窗口：切过去并以可重映射方式重发同一个键，由该窗口自己的映射或内置行为处理
+---  · 鼠标不在任何窗口（命令行、分隔线等）或目标窗口不可聚焦：吞掉事件，不执行面板动作
+---返回 false 表示事件确实落在 win 内，调用方继续原逻辑
+---@param win integer 面板窗口
+---@param key string 映射的鼠标键，如 '<RightMouse>'
+---@return boolean handled
+function M.redispatch_outside(win, key)
+  local target = vim.fn.getmousepos().winid
+  if target == win then return false end
+  -- 目标已是当前窗口说明是重发后又回到了这里（同一面板 buffer 显示在多个窗口）：吞掉，避免无限重发
+  if target == 0 or target == vim.api.nvim_get_current_win() then return true end
+  if not pcall(vim.api.nvim_set_current_win, target) then return true end
+  -- 'm' 可重映射：命中目标 buffer 的 buffer-local 映射或全局映射
+  vim.api.nvim_feedkeys(vim.keycode(key), 'mi', false)
+  return true
+end
+
 return M

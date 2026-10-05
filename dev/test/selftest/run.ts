@@ -46,7 +46,9 @@ function alive(pid: number) {
     return true
   }
   catch (error: any) {
-    if (error.code === 'ESRCH') return false
+    if (error.code === 'ESRCH') {
+      return false
+    }
     throw error
   }
 }
@@ -56,7 +58,9 @@ function killGroup(pid: number) {
     process.kill(-pid, 'SIGKILL')
   }
   catch (error: any) {
-    if (error.code !== 'ESRCH') throw error
+    if (error.code !== 'ESRCH') {
+      throw error
+    }
   }
 }
 
@@ -84,7 +88,9 @@ function killTree(pid: number) {
       process.kill(child, 'SIGKILL')
     }
     catch (error: any) {
-      if (error.code !== 'ESRCH') throw error
+      if (error.code !== 'ESRCH') {
+        throw error
+      }
     }
   }
 
@@ -92,13 +98,26 @@ function killTree(pid: number) {
 }
 
 // 专属外层进程组 + 后代快照：墙钟超时也能中断阻塞 RPC
-async function run({ filter = '', timeoutMs = 15000, env = {} }: RunOptions = {}) {
-  const child = spawn('sh', [join(shared, 'dev/test/run.sh'), plugin, filter], {
+async function run({ filter = '', timeoutMs = 15000, env = {}, launcher = false, signal = false }: RunOptions = {}) {
+  const args = launcher ? [join(plugin, 'tests/run.sh'), filter] : [join(shared, 'dev/test/run.sh'), plugin, filter]
+  const child = spawn('sh', args, {
     cwd: root,
     detached: true,
     env: {
       ...process.env,
       PATH: `${bin}:${process.env.PATH}`,
+      HOME: join(root, 'caller home'),
+      XDG_CONFIG_HOME: join(root, 'caller config'),
+      XDG_DATA_HOME: join(root, 'caller data'),
+      XDG_STATE_HOME: join(root, 'caller state'),
+      XDG_CACHE_HOME: join(root, 'caller cache'),
+      XDG_RUNTIME_DIR: join(root, 'caller runtime'),
+      NVIM_APPNAME: 'nvim',
+      VV_TEST_SITE: undefined,
+      VV_TEST_VENDOR_ROOT: undefined,
+      VV_TEST_LAZY_ROOT: undefined,
+      VV_TEST_PACK_ROOT: undefined,
+      VV_TEST_RUNTIME_PATHS: undefined,
       VV_UTILS: shared,
       NVIM_BIN: nvim!,
       VV_TEST_DEPS_CACHE: join(root, 'deps'),
@@ -119,6 +138,15 @@ async function run({ filter = '', timeoutMs = 15000, env = {} }: RunOptions = {}
     output += chunk
   })
 
+  let signalled = false
+  const signalTimer = signal
+    ? setInterval(() => {
+      if (!signalled && existsSync(evidence)) {
+        signalled = true
+        process.kill(child.pid!, 'SIGTERM')
+      }
+    }, 25)
+    : undefined
   const timer = setTimeout(() => {
     timedOut = true
     killTree(child.pid!)
@@ -134,7 +162,12 @@ async function run({ filter = '', timeoutMs = 15000, env = {} }: RunOptions = {}
   }
   finally {
     clearTimeout(timer)
-    if (child.pid) killGroup(child.pid)
+    if (signalTimer) {
+      clearInterval(signalTimer)
+    }
+    if (child.pid) {
+      killGroup(child.pid)
+    }
   }
 }
 
@@ -173,7 +206,9 @@ async function test(name: string, body: () => Promise<void>) {
     // 即使清理契约回归导致断言失败，也清理我们记录的 fixture 子进程
     if (existsSync(evidence)) {
       const pid = recorded().pid
-      if (pid && alive(pid)) killTree(pid)
+      if (pid && alive(pid)) {
+        killTree(pid)
+      }
     }
 
     // SIGKILL 不能运行 shell trap；外层拥有 fixture，并负责超时后的清理
@@ -184,6 +219,7 @@ async function test(name: string, body: () => Promise<void>) {
 
 try {
   mkdirSync(scratch, { recursive: true })
+  write(join(root, 'caller config/nvim/init.lua'), 'error(\'设施自测不得加载个人配置\')')
 
   // 仅加载依赖配置以定位缓存，不调用 ensure_mini_test，不重复维护版本 pin
   const dependency = spawnSync(nvim!, [
@@ -216,10 +252,13 @@ try {
   if (!existsSync(miniTestModule)) {
     const prepared = spawnSync(nvim!, [
       '--headless',
-      '-u', 'NONE',
-      '-i', 'NONE',
+      '-u',
+      'NONE',
+      '-i',
+      'NONE',
       '-n',
-      '-l', join(tools, 'selftest/prepare.lua'),
+      '-l',
+      join(tools, 'selftest/prepare.lua'),
     ], {
       encoding: 'utf8',
       timeout: 180000,
@@ -235,14 +274,16 @@ try {
       },
     })
     assert.equal(prepared.status, 0, prepared.stderr || prepared.stdout || String(prepared.error))
-    if (prepared.stdout) process.stdout.write(prepared.stdout)
+    if (prepared.stdout) {
+      process.stdout.write(prepared.stdout)
+    }
   }
 
   assert(existsSync(miniTestModule), `固定版本 mini.test 缓存准备失败：${cache}`)
 
   cpSync(join(utils, 'lua'), join(shared, 'lua'), { recursive: true })
 
-  for (const file of ['run.sh', 'run.lua', 'deps.lua']) {
+  for (const file of ['run.sh', 'run.lua', 'deps.lua', 'paths.sh', 'runtime.lua', 'stop.lua', 'process.lua']) {
     cpSync(join(tools, file), join(shared, 'dev/test', file), { recursive: true })
   }
 
@@ -312,8 +353,12 @@ return T`,
 
       const value = recorded()
       assert.equal(value.reached, name, `${name} 未到达预期失败点`)
-      if (diagnostic) assert(result.output.includes(diagnostic), result.output)
-      if (value.pid) assert(!alive(value.pid), `${name} 泄漏了 Neovim 进程 ${value.pid}`)
+      if (diagnostic) {
+        assert(result.output.includes(diagnostic), result.output)
+      }
+      if (value.pid) {
+        assert(!alive(value.pid), `${name} 泄漏了 Neovim 进程 ${value.pid}`)
+      }
       assert.deepEqual(readdirSync(scratch), [], `${name} 泄漏了 shell scratch`)
 
       console.log(`  ${name}: 非零退出符合预期（${result.code}），scratch 与进程已清理`)
@@ -391,8 +436,8 @@ return T`,
 
     const source = join(root, 'installed source')
     const alternate = join(root, 'alternate source')
-    write(join(source, 'lua/selftest_source.lua'), "return { label = 'default' }")
-    write(join(alternate, 'lua/selftest_source.lua'), "return { label = 'override' }")
+    write(join(source, 'lua/selftest_source.lua'), 'return { label = \'default\' }')
+    write(join(alternate, 'lua/selftest_source.lua'), 'return { label = \'override\' }')
 
     fixture(`local T = M.new_set()
 T['只读接入已安装源码'] = function()
@@ -426,6 +471,232 @@ return T`)
     assert(!existsSync(evidence), '依赖缺失不能继续执行用例或静默改用默认源码')
   })
 
+  // 真实 launcher 加载不同 fixture 模块捕获优先级错误，不检查源码拼写
+  await test('真实薄入口选择开发源码、lazy 与各 native group，并冻结原始路径', async () => {
+    const home = join(root, 'false home')
+    const config = join(root, 'false config/nvim')
+    const data = join(root, 'false data/nvim')
+    const vendor = join(root, 'development roots')
+    const lazy = join(root, 'custom lazy')
+    const pack = join(root, 'custom packpath')
+    const runtime = join(root, 'parser query runtime')
+    for (const dir of [home, config, data, vendor, lazy, pack, runtime]) {
+      mkdirSync(dir, { recursive: true })
+    }
+    write(join(config, 'init.lua'), `error('personal init must never run')`)
+    write(join(runtime, 'lua/selftest_runtime.lua'), 'return \'runtime loaded\'')
+    write(join(runtime, 'queries/selftest/highlights.scm'), '; real query root')
+    const install = (dir: string, label: string) => {
+      cpSync(shared, dir, { recursive: true })
+      write(join(dir, 'lua/selftest_utils.lua'), `return ${JSON.stringify(label)}`)
+      write(join(dirname(dir), 'fixture-dep/lua/selftest_dep.lua'), `return ${JSON.stringify(label)}`)
+    }
+    const base: NodeJS.ProcessEnv = {
+      HOME: home,
+      XDG_CONFIG_HOME: dirname(config),
+      XDG_DATA_HOME: dirname(data),
+      XDG_CACHE_HOME: join(root, 'false cache'),
+      NVIM_APPNAME: 'nvim',
+      VV_UTILS: undefined,
+      VV_TEST_SITE: undefined,
+      VV_TEST_VENDOR_ROOT: vendor,
+      VV_TEST_LAZY_ROOT: lazy,
+      VV_TEST_PACK_ROOT: pack,
+      VV_SELFTEST_DEP: undefined,
+      VV_TEST_RUNTIME_PATHS: './parser query runtime',
+      // 相对可执行路径必须在随后 cwd/HOME 隔离后仍有效
+      NVIM_BIN: './nvim executable',
+    }
+    write(join(root, 'nvim executable'), `#!/bin/sh\nexec "${nvim}" "$@"\n`, true)
+    // 在真实 child 内加载，证明 runtime 同样被接入
+    fixture(`local child = M.new_child_neovim()
+local T = M.new_set({ hooks = { post_case = function() child.stop() end } })
+T['依赖来源与查询根可读回'] = function()
+  child.start({ '-u', 'NONE', '-i', 'NONE' }, { nvim_executable = vim.v.progpath })
+  child.lua([[vim.opt.packpath = ''
+    dofile(vim.env.VV_UTILS .. '/dev/test/runtime.lua').apply()
+    vim.opt.runtimepath:prepend(vim.env.VV_UTILS)
+    vim.opt.runtimepath:prepend(vim.env.VV_SELFTEST_DEP)]])
+  record({ utils = child.lua_get("require('selftest_utils')"),
+    dep = child.lua_get("require('selftest_dep')"),
+    runtime = child.lua_get("require('selftest_runtime')"),
+    query = child.lua_get("vim.api.nvim_get_runtime_file('queries/selftest/highlights.scm', false)[1]"),
+    site = vim.env.VV_TEST_SITE })
+end
+return T`)
+    cpSync(join(tools, 'launcher.sh'), join(plugin, 'tests/run.sh'))
+    write(join(plugin, 'tests/env.sh'), `vv_test_dependency VV_SELFTEST_DEP fixture-dep lua/selftest_dep.lua\n`)
+    const assertLabel = async (label: string, env = base) => {
+      const result = await run({ launcher: true, env })
+      success(result)
+      assert.equal(recorded().utils, label)
+      assert.equal(recorded().dep, label)
+      assert.equal(recorded().runtime, 'runtime loaded')
+      assert.equal(recorded().query, join(runtime, 'queries/selftest/highlights.scm'))
+      const expectedData = env.XDG_DATA_HOME ?? join(env.HOME!, '.local/share')
+      assert.equal(recorded().site, join(expectedData, 'nvim/site'))
+    }
+    // 非兄弟标准 lazy 布局与显式 lazy 根分别可用
+    install(join(data, 'lazy/vv-utils.nvim'), 'standard lazy')
+    const standard = { ...base, VV_TEST_VENDOR_ROOT: undefined, VV_TEST_LAZY_ROOT: undefined, VV_TEST_PACK_ROOT: undefined }
+    await assertLabel('standard lazy', standard)
+    // 原 HOME 默认值及相对 XDG 缓存必须在隔离前冻结
+    install(join(home, '.local/share/nvim/lazy/vv-utils.nvim'), 'HOME lazy')
+    cpSync(join(root, 'deps'), join(root, 'relative cache/nvim-test-deps'), { recursive: true })
+    await assertLabel('HOME lazy', {
+      ...standard,
+      XDG_DATA_HOME: undefined,
+      XDG_CONFIG_HOME: undefined,
+      XDG_CACHE_HOME: './relative cache',
+      VV_TEST_DEPS_CACHE: undefined,
+    })
+    install(join(lazy, 'vv-utils.nvim'), 'custom lazy')
+    await assertLabel('custom lazy')
+    install(join(root, 'vv-utils.nvim'), 'sibling development')
+    await assertLabel('sibling development')
+    rmSync(join(root, 'vv-utils.nvim'), { recursive: true })
+    rmSync(join(root, 'fixture-dep'), { recursive: true })
+    install(join(vendor, 'vv-utils.nvim'), 'dirty development')
+    await assertLabel('dirty development')
+    write(join(vendor, 'vv-utils.nvim/lua/selftest_utils.lua'), 'return \'dirty changed\'')
+    write(join(vendor, 'fixture-dep/lua/selftest_dep.lua'), 'return \'dirty changed\'')
+    await assertLabel('dirty changed')
+    const override = join(root, 'renamed checkout')
+    install(override, 'explicit renamed')
+    await assertLabel('explicit renamed', { ...base, VV_UTILS: './renamed checkout', VV_SELFTEST_DEP: './fixture-dep' })
+    rmSync(join(root, 'fixture-dep'), { recursive: true })
+    rmSync(join(vendor, 'vv-utils.nvim'), { recursive: true })
+    rmSync(join(vendor, 'fixture-dep'), { recursive: true })
+    rmSync(join(lazy, 'vv-utils.nvim'), { recursive: true })
+    rmSync(join(lazy, 'fixture-dep'), { recursive: true })
+    for (const location of ['pack/non-core/start', 'pack/another/opt', 'pack/core/opt']) {
+      const group = join(pack, location)
+      install(join(group, 'vv-utils.nvim'), location)
+      await assertLabel(location)
+      rmSync(join(pack, 'pack'), { recursive: true })
+    }
+    // 不传显式 pack 根时，标准 site/core/opt 同样可发现
+    rmSync(join(data, 'lazy'), { recursive: true })
+    install(join(data, 'site/pack/core/opt/vv-utils.nvim'), 'standard core opt')
+    await assertLabel('standard core opt', standard)
+    // 无兄弟或显式开发根时，config/vendors 同样可发现
+    install(join(config, 'vendors/vv-utils.nvim'), 'config vendors')
+    await assertLabel('config vendors', standard)
+    for (
+      const env of [
+        { ...base, VV_UTILS: './missing utils' },
+        { ...standard, VV_SELFTEST_DEP: './missing dep' },
+        { ...standard, VV_TEST_SITE: './missing site' },
+        { ...standard, VV_TEST_PACK_ROOT: './missing pack' },
+        { ...standard, VV_TEST_RUNTIME_PATHS: './missing runtime' },
+      ]
+    ) {
+      rmSync(evidence, { force: true })
+      const result = await run({ launcher: true, env })
+      assert(!result.timedOut && result.code !== 0, result.output)
+      assert(result.output.includes('vv-test:'), result.output)
+      assert(!existsSync(evidence), '错误覆盖不能 fallback 或运行用例')
+    }
+    // 目录存在但所需入口标记缺失，同样必须明确失败
+    rmSync(join(config, 'vendors/fixture-dep/lua/selftest_dep.lua'))
+    const result = await run({ launcher: true, env: standard })
+    assert(result.code !== 0 && result.output.includes('missing required marker'), result.output)
+  })
+
+  await test('恶意 Git 与终端环境在依赖准备前隔离且真实 Git 不受污染', async () => {
+    const realGit = Bun.which('git')!
+    const gitBin = join(root, 'real git bin')
+    write(join(gitBin, 'git'), `#!/bin/sh\nexec "${realGit}" "$@"\n`, true)
+    fixture(`local T = M.new_set()
+T['真实 Git 配置不继承注入'] = function()
+  for _, key in ipairs({ 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_CONFIG_COUNT',
+    'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'GIT_CONFIG_PARAMETERS', 'TMUX', 'TMUX_PANE',
+    'STY', 'NVIM', 'NVIM_LISTEN_ADDRESS', 'KITTY_LISTEN_ON', 'KITTY_WINDOW_ID',
+    'WEZTERM_PANE' }) do assert(vim.env[key] == nil, key) end
+  local result = vim.system({ 'git', 'config', '--get', 'selftest.poison' }, { text = true }):wait()
+  assert(result.code == 1 and result.stdout == '', 'Git 仍受个人或命令注入配置污染')
+  record({ reached = true })
+end
+return T`)
+    const poison = join(root, 'poison.gitconfig')
+    write(poison, '[selftest]\npoison = leaked\n')
+    write(
+      join(plugin, 'tests/env.sh'),
+      `
+[ -z "\${GIT_DIR:-}" ] && [ -z "\${GIT_CONFIG_COUNT:-}" ] && [ -z "\${NVIM:-}" ] || exit 92
+`,
+    )
+    success(
+      await run({
+        env: {
+          PATH: `${gitBin}:${bin}:${process.env.PATH}`,
+          GIT_DIR: './evil repo',
+          GIT_WORK_TREE: './evil tree',
+          GIT_INDEX_FILE: './evil index',
+          GIT_CONFIG_COUNT: '1',
+          GIT_CONFIG_KEY_0: 'selftest.poison',
+          GIT_CONFIG_VALUE_0: 'injected',
+          GIT_CONFIG_PARAMETERS: '\'selftest.poison=injected\'',
+          GIT_CONFIG_GLOBAL: poison,
+          GIT_CONFIG_SYSTEM: poison,
+          TMUX: 'evil mux',
+          TMUX_PANE: '%1',
+          STY: 'evil screen',
+          KITTY_LISTEN_ON: 'unix:/tmp/evil-kitty',
+          KITTY_WINDOW_ID: '42',
+          WEZTERM_PANE: '17',
+          NVIM: 'evil socket',
+          NVIM_LISTEN_ADDRESS: 'evil address',
+        },
+      }),
+    )
+    assert.equal(recorded().reached, true)
+  })
+
+  await test('相对临时根在切换 cwd 前冻结且真实写入归属本轮 scratch', async () => {
+    fixture(`local T = M.new_set()
+T['相对 TMPDIR 仍能真实写入隔离目录'] = function()
+  for _, name in ipairs({ 'TMPDIR', 'HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME' }) do
+    local path = assert(vim.env[name], name)
+    assert(path:sub(1, 1) == '/', name .. ' 仍是相对路径：' .. path)
+  end
+  local file = vim.env.TMPDIR .. '/relative-tmp-proof'
+  assert(vim.fn.writefile({ 'owned scratch' }, file) == 0)
+  assert(vim.fn.readfile(file)[1] == 'owned scratch')
+  record({ temporary_root = vim.env.TMPDIR })
+end
+return T`)
+    const mktemp = join(bin, 'mktemp')
+    const original = readFileSync(mktemp, 'utf8')
+    // 此场景必须让真实 mktemp 消费入口模板，不能被固定 scratch stub 掩盖
+    write(mktemp, '#!/bin/sh\nexec /usr/bin/mktemp "$@"\n', true)
+    try {
+      success(await run({ env: { TMPDIR: './scratch' } }))
+      assert(resolve(recorded().temporary_root).startsWith(scratch + '/'),
+        `相对临时根脱离 owning scratch：${recorded().temporary_root}；期望 ${scratch}/`)
+      assert.deepEqual(readdirSync(scratch), [], '相对临时根退出后没有完整清理')
+    }
+    finally {
+      write(mktemp, original, true)
+    }
+  })
+
+  await test('共享入口收到 TERM 后非零退出并清理真实 child 与 scratch', async () => {
+    fixture(`local child = M.new_child_neovim()
+local T = M.new_set()
+T['信号中断真实 RPC'] = function()
+  child.start({ '-u', 'NONE', '-i', 'NONE' }, { nvim_executable = vim.v.progpath })
+  record({ pid = child.lua_get('vim.fn.getpid()') })
+  child.lua('while true do end')
+end
+return T`)
+    const result = await run({ signal: true })
+    assert(!result.timedOut, `TERM 清理超时（exit=${result.code}）\n${result.output}`)
+    assert.equal(result.code, 143, `TERM 应保留信号退出码（actual=${result.code}）\n${result.output}`)
+    assert(!alive(recorded().pid), 'TERM 留下了真实 child')
+    assert.deepEqual(readdirSync(scratch), [], 'TERM 未执行 scratch 清理')
+  })
+
   await test('外层墙钟超时终止阻塞 RPC 及其子进程', async () => {
     fixture(`local child = M.new_child_neovim()
 local T = M.new_set()
@@ -454,4 +725,6 @@ type RunOptions = {
   filter?: string
   timeoutMs?: number
   env?: NodeJS.ProcessEnv
+  launcher?: boolean
+  signal?: boolean
 }

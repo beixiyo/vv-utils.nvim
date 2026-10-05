@@ -36,7 +36,7 @@ hl.register('vv-utils.prompt.hl', {
   VVPromptCount = { link = 'Comment' },
 })
 
--- 创建浮窗 buffer + window，贴在 anchor 窗口底部 PROMPT_HEIGHT 行
+--- 创建浮窗 buffer + window，贴在 anchor 窗口底部 PROMPT_HEIGHT 行
 ---@param anchor_win integer
 ---@param initial string
 ---@param filetype? string
@@ -75,9 +75,9 @@ local function setup_floating_window(anchor_win, initial, filetype)
   return buf, win
 end
 
--- 装饰：label overlay 在 line 0；placeholder overlay 在 line 1。返回 redraw()
--- busy_ctx = { busy, label, frame_char } 由 spinner ticker 维护；
--- status 优先级：busy > opts.status_override > opts.get_status
+--- 装饰：label overlay 在 line 0；placeholder overlay 在 line 1。返回 redraw()
+--- busy_ctx = { busy, label, frame_char } 由 spinner ticker 维护；
+--- status 优先级：busy > opts.status_override > opts.get_status
 ---@param buf integer
 ---@param opts VVPromptOpts
 ---@param busy_ctx { busy: boolean, label: string, frame_char: string }
@@ -148,13 +148,13 @@ local function setup_decorations(buf, opts, busy_ctx)
       right_gravity = false,
     })
   end
-  -- set_status 推送文案的写入口（闭包共享 status_override）
+  --- set_status 推送文案的写入口（闭包共享 status_override）
   ---@param text string
   local function set_status_text(text) status_override = text end
   return redraw, set_status_text
 end
 
--- 取消 / 提交 / 切模式 / 导航 / 分屏 keymap
+--- 取消 / 提交 / 切模式 / 导航 / 分屏 keymap
 ---@param buf integer
 ---@param opts VVPromptOpts
 ---@param ctx { close: fun(), get_query: fun(): string, redraw: fun() }
@@ -223,11 +223,24 @@ local function setup_keymaps(buf, opts, ctx)
   end
 end
 
--- 打开过滤输入框
+--- 在 open 入口校验 spinner 选项：直接复用 vv-utils.loading 的校验规则（frames / interval_ms）
+--- 若推迟到首次 set_busy(true) 才由 loading.ticker 抛错，busy 已置位、浮窗已打开，只会留下无帧的 busy 文案
+--- spinner 非 nil 时必须为表：false 不表示“禁用”（set_busy 始终驱动 spinner），按非法值抛错，
+--- 与 frames / interval_ms 传 false 时抛错的规则一致
+---@param spinner? VVPromptSpinnerOpts
+local function validate_spinner(spinner)
+  if spinner == nil then return end
+  if type(spinner) ~= 'table' then error('vv-utils.prompt: spinner must be a table', 0) end
+  Loading.validate_frame_opts(spinner, 'vv-utils.prompt: spinner.')
+end
+
+--- 打开过滤输入框
+--- opts.spinner 的 frames / interval_ms 非法时直接抛错，不创建任何窗口 / buffer / timer
 ---@param anchor_win integer        宿主侧栏 window id（浮窗贴它底部、宽度对齐）
 ---@param opts VVPromptOpts
 ---@return VVPromptHandle? handle    宿主应在自身销毁时调 handle.close() 连带关浮窗
 function M.open(anchor_win, opts)
+  validate_spinner(opts.spinner)
   local initial = opts.initial or ''
   local buf, win = setup_floating_window(anchor_win, initial, opts.filetype)
   if not buf or not win then return end
@@ -238,7 +251,7 @@ function M.open(anchor_win, opts)
   local aug_name = 'vv-utils.prompt.' .. buf
 
   local busy_ctx = { busy = false, label = '', frame_char = '' }
-  local ticker_stop = nil  -- vv-utils.loading.ticker 的 stop 句柄
+  local spinner_ticker = nil  -- vv-utils.loading.ticker 的 handle
 
   local redraw, set_status_text = setup_decorations(buf, opts, busy_ctx)
   redraw()
@@ -250,7 +263,7 @@ function M.open(anchor_win, opts)
   local last_valid_query = initial
   local repairing_structure = false
 
-  ---恢复 label + query 双行不变量
+  --- 恢复 label + query 双行不变量
   ---@return boolean repaired
   ---@return boolean query_changed
   local function guard_structure()
@@ -277,7 +290,10 @@ function M.open(anchor_win, opts)
   end
 
   local function stop_spinner()
-    if ticker_stop then ticker_stop(); ticker_stop = nil end
+    if spinner_ticker then
+      spinner_ticker:stop()
+      spinner_ticker = nil
+    end
   end
 
   local function close()
@@ -296,13 +312,15 @@ function M.open(anchor_win, opts)
 
   -- spinner 的 timer + 帧循环交给 vv-utils.loading.ticker；on_frame 把当前帧字符
   -- 塞进 busy_ctx 后重画（帧渲染在本模块的 line0 overlay 里，与 badge/状态拼成一条）
+  -- on_frame 返回 false 时 ticker 自行停止（含 ticker() 内同步触发的首帧，那时 spinner_ticker 尚未赋值），
+  -- 因此 spinner_ticker 可能指向已停止的 handle：以 is_active 判断是否需要重建
   local function start_spinner()
-    if ticker_stop then return end
-    ticker_stop = Loading.ticker({
+    if spinner_ticker and spinner_ticker:is_active() then return end
+    spinner_ticker = Loading.ticker({
       frames = opts.spinner and opts.spinner.frames,
       interval_ms = opts.spinner and opts.spinner.interval_ms,
       on_frame = function(char)
-        if closed or not busy_ctx.busy then stop_spinner(); return end
+        if closed or not busy_ctx.busy then return false end
         busy_ctx.frame_char = char
         redraw()
       end,
@@ -396,8 +414,8 @@ function M.open(anchor_win, opts)
 end
 
 ---@class VVPromptSpinnerOpts
----@field frames?      string[]  spinner 帧 @default 盲文 10 帧
----@field interval_ms? integer   帧间隔 @default 80
+---@field frames?      string[]  spinner 帧，必须为非空字符串列表（open 时校验）@default 盲文 10 帧
+---@field interval_ms? integer   帧间隔，必须为 >= 1 的整数（open 时校验）@default 80
 
 ---@class VVPromptOpts
 ---@field initial?       string                       初始查询 @default ''
@@ -416,6 +434,6 @@ end
 ---@field on_navigate?   fun(dir: integer)            按 Ctrl-N/Ctrl-P 在宿主列表中跳转 match
 ---@field on_open_in?    fun(kind: 'split'|'vsplit')  按 Ctrl-X/Ctrl-V 分屏打开当前 match
 ---@field debounce?      integer|fun(): integer       防抖毫秒（支持自适应函数）@default 30
----@field spinner?       VVPromptSpinnerOpts          提供则启用 busy spinner（配合 handle.set_busy）
+---@field spinner?       VVPromptSpinnerOpts          busy spinner 的帧与间隔（配合 handle.set_busy）；非 nil 时必须为表，false 抛错
 ---@field completion?    VVCompletionDescriptor       当前输入 buffer 的补全策略
 return M

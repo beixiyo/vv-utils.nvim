@@ -68,6 +68,7 @@
 ---@field children? VVTreePanelNode[]
 ---@field expanded? boolean
 ---@field selectable? boolean
+---@field navigable? boolean|'folded'  j/k（next_item / prev_item）是否停留在该行；'folded' 表示只在折叠时停留，展开后作为分组标签被跳过，open_node 展开后光标进入第一个子项 @default true
 ---@field location? { file: string, row: integer, col?: integer }
 ---@field data? any
 

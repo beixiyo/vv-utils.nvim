@@ -30,7 +30,7 @@ local function synchronize()
   assert(vim.fn.writefile({ 'ready' }, ready_path) == 0)
   assert(vim.wait(10000, function()
     return vim.fn.filereadable(start_path) == 1
-  end, 5), 'concurrent state fixture timed out at barrier')
+  end, 5), '并发状态 fixture 等待同步屏障超时')
 end
 
 if mode == 'set' then
@@ -51,7 +51,7 @@ elseif mode == 'cas' then
 elseif mode == 'write' then
   assert(state:set('width', 57))
 elseif mode == 'read' then
-  assert(state:get('width') == 57, 'a fresh Neovim process did not restore width 57')
+  assert(state:get('width') == 57, '新 Neovim 进程未恢复持久宽度 57')
 elseif mode == 'subscribe' then
   assert(ready_path and result_path)
   local unsubscribe = state:subscribe('value', function(next_value, previous)
@@ -63,7 +63,7 @@ elseif mode == 'subscribe' then
   assert(vim.fn.writefile({ 'ready' }, ready_path) == 0)
   assert(vim.wait(10000, function()
     return vim.fn.filereadable(result_path) == 1
-  end, 5), 'state subscriber timed out waiting for another process')
+  end, 5), '状态订阅等待另一进程写入超时')
   unsubscribe()
 else
   error('unknown state process fixture mode: ' .. mode)
