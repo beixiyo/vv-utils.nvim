@@ -1,4 +1,4 @@
--- 场景独立运行，收集阶段只注册 mini.test 具名用例与生命周期 hook。
+-- 场景独立运行，收集阶段只注册 mini.test 具名用例与生命周期 hook
 local H = dofile('tests/helpers.lua')
 local T, child = H.new_set(function()
   source = (vim.env.VV_TEST_REPO .. '/tests/test_keys.lua')
@@ -27,7 +27,7 @@ T["键位组合按修饰符与平台习惯展示"] = function()
       { '<NL>', '^j' },
       { '<C-W>q', '^wq' },
       { '<localleader>r', '\\r' },
-      { '<leader>fp', '␠fp' },
+      { '<leader>fp', '␣fp' },
       -- keytrans() 把 \ 与 | 记作 <Bslash> / <Bar>，展示层必须还原为字符
       { '<Bar>', '|' },
       { '\\', '\\' },
@@ -39,9 +39,9 @@ T["键位组合按修饰符与平台习惯展示"] = function()
       { '<D-Bar>', '⌘|' },
       { '<M-lt>', '⌥<' },
       { '<C-lt>', '^<' },
-      { '<C-Space>', '^␠' },
-      { '<M-Space>', '⌥␠' },
-      { '<M-S-Space>', '⌥⇧␠' },
+      { '<C-Space>', '^␣' },
+      { '<M-Space>', '⌥␣' },
+      { '<M-S-Space>', '⌥⇧␣' },
       { '<C-CR>', '^↵' },
       { '<M-CR>', '⌥↵' },
       { '<C-M-CR>', '^⌥↵' },

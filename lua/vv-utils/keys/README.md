@@ -11,6 +11,8 @@ Keys.display('<S-Tab>') -- ⇧Tab
 Keys.display('<D-v>')  -- ⌘v
 Keys.display('<CR>')   -- ↵
 Keys.display('<NL>')   -- ^j
+Keys.display('<Space>') -- ␣
+Keys.display('<C-Space>') -- ^␣
 Keys.display('<C-W>q') -- ^wq
 Keys.hint('Confirm', '<C-y>') -- Confirm ^y
 ```

@@ -11,7 +11,7 @@ local modifiers = {
 }
 
 -- 带不带修饰键都要还原为可见字符/符号的键名；display_token 在剥掉修饰键后同样查这张表，
--- 否则 <M-\> 会显示成 ⌥Bslash、<C-Space> 显示成 ^Space（与无修饰的 ␠ 不一致）
+-- 否则 <M-\> 会显示成 ⌥Bslash、<C-Space> 显示成 ^Space（与无修饰的 ␣ 不一致）
 local special_keys = {
   CR = '↵',
   -- keytrans() 会把字面量左尖括号表示成 <lt>
@@ -21,7 +21,7 @@ local special_keys = {
   Bslash = '\\',
   Bar = '|',
   -- 空格作为 <leader> 时必须在帮助文本中保持可见
-  Space = '␠',
+  Space = '␣',
 }
 
 -- 仅无修饰时才成立的展示：<NL> 本身是 Ctrl-J，不能与 <CR> 合并（宏和映射可能同时包含两者），
