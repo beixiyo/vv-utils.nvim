@@ -4,7 +4,7 @@
 --   ① 注册 `.*` 的 filetype 探测函数——命中"大小阈值"或"平均行长阈值"(识别 minified)
 --      即返回 filetype = 'bigfile'
 --   ② 监听 FileType=bigfile，禁用重开销特性（matchparen / folding / statuscolumn /
---      conceal / completion / mini.* 系列），再在下个 tick 用原 filetype 重挂 syntax
+--      conceal / completion / mini.* 系列），再在下个 tick 按 syntax 选项恢复或关闭传统高亮
 --
 -- 用法：
 --   require('vv-utils.bigfile').setup()
@@ -14,17 +14,20 @@ local M = {}
 
 ---@class vv-utils.bigfile.Ctx
 ---@field buf integer
----@field ft  string
+---@field ft  string 原始语言，不受 syntax 开关影响
+---@field syntax boolean 默认 setup 是否恢复传统 syntax @default false
 
 ---@class vv-utils.bigfile.Opts
 ---@field notify? boolean                             触发时弹通知
 ---@field size? integer                               字节数硬阈值
 ---@field line_length? integer                        平均行长阈值（minified 识别）
+---@field syntax? boolean                             默认 setup 是否恢复传统 syntax，false 可避免大文件深处重绘阻塞 @default false
 ---@field setup? fun(ctx: vv-utils.bigfile.Ctx): nil  自定义副作用（覆盖默认禁用项）
 local defaults = {
   notify = true,
   size = 1 * 1024 * 1024,
   line_length = 800,
+  syntax = false,
   setup = function(ctx)
     if vim.fn.exists(':NoMatchParen') ~= 0 then
       vim.cmd('NoMatchParen')
@@ -39,7 +42,7 @@ local defaults = {
     vim.b[ctx.buf].minihipatterns_disable = true
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(ctx.buf) then
-        vim.bo[ctx.buf].syntax = ctx.ft
+        vim.bo[ctx.buf].syntax = ctx.syntax and ctx.ft or ''
       end
     end)
   end,
@@ -111,7 +114,7 @@ function M.setup(user_opts)
         end
       end
       vim.api.nvim_buf_call(ev.buf, function()
-        opts.setup({ buf = ev.buf, ft = ft })
+        opts.setup({ buf = ev.buf, ft = ft, syntax = opts.syntax })
       end)
     end,
   })

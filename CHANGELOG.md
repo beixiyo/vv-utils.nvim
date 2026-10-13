@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1 - 2026-10-13
+
+### Fixed
+
+- **bigfile**：避免大文件恢复传统 syntax 后，在 Git diff 跳到文件深处时阻塞重绘；覆盖真实文件与无名快照，保留普通文件语法高亮和原生 diff 高亮
+
+### Changed
+
+- **bigfile**：新增 `syntax` 选项，默认 `false`
+
 ## 0.8.0 - 2026-10-04
 
 ### Breaking
