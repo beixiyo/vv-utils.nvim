@@ -48,7 +48,7 @@ end
 ---@return boolean handled 是否已接管滚动
 function M.mouse(direction, win_id)
   local config = state.config()
-  local step = config.mouse_step or state.defaults.mouse_step
+  local step = config.mouse_step
   if step <= 0 then return false end
 
   local target_win = win_id or viewport.mouse_target_win()

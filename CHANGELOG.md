@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.2 - 2026-10-22
+
+### Changed
+
+- **tree_panel**：默认值收敛到 `new()` 内部，调用方传入的表不再被改写；`toolbar` 默认值同样在 `new()` 归一化
+- **scroll**：读取处不再兜底，统一读 `setup()` 合并后的配置；新增 `Config` 类型
+- **blink** / **bigfile**：合并前深拷贝默认值
+- **ui_peek**、**ui_columns**：去掉重复的默认值兜底
+
 ## 0.8.1 - 2026-10-13
 
 ### Fixed

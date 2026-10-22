@@ -46,8 +46,7 @@
 ---@field on_confirm? fun() 执行确认动作时调用
 ---@field on_cancel? fun() 执行取消动作时调用
 
----@class VVConfirmHandle
----@field close fun() 关闭浮窗，不触发回调
----@field is_open fun(): boolean
+---确认框句柄与 modal 句柄同形，直接复用 VVModalHandle
+---@alias VVConfirmHandle VVModalHandle
 
 return {}

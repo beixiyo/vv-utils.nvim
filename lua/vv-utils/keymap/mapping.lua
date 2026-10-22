@@ -57,6 +57,7 @@ end
 ---@param spec VVKeymapSpec
 function M.claim(handle, buf, spec)
   local modes = type(spec.mode) == 'table' and spec.mode or { spec.mode }
+  ---@cast modes string[]
   for _, mode in ipairs(modes) do
     local map_key = M.key(mode, spec.lhs)
     local claims = handle.claims[buf] or {}

@@ -18,7 +18,7 @@ local DEFAULTS = {
 ---@return VVUtilsBlinkSource
 function M.new(opts)
   local source = setmetatable({}, { __index = M })
-  source.opts = vim.tbl_deep_extend('force', DEFAULTS, opts or {})
+  source.opts = vim.tbl_deep_extend('force', vim.deepcopy(DEFAULTS), opts or {})
   return source
 end
 

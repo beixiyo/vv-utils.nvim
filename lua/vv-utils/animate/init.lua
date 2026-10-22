@@ -20,6 +20,7 @@ local uv = vim.uv or vim.loop
 ---@field timer uv.uv_timer_t|nil
 ---@field steps number[]|nil
 ---@field _step number|nil
+---@field _opts VVAnimateOpts
 local Animation = {}
 Animation.__index = Animation
 

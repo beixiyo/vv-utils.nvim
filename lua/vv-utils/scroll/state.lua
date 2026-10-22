@@ -29,19 +29,19 @@ M.runtime = {
   manual_suppress_until = 0,
 }
 
-local config = vim.deepcopy(M.defaults)
+local config = vim.deepcopy(M.defaults) ---@type vv-utils.scroll.Config
 
 ---@param opts? vv-utils.scroll.Opts
 function M.setup(opts)
   config = vim.tbl_deep_extend('force', vim.deepcopy(M.defaults), opts or {})
 end
 
----@return vv-utils.scroll.Opts
+---@return vv-utils.scroll.Config
 function M.get_config()
   return vim.deepcopy(config)
 end
 
----@return vv-utils.scroll.Opts
+---@return vv-utils.scroll.Config
 function M.config()
   return config
 end
@@ -54,12 +54,12 @@ function M.duration_limit(name)
     return math.max(0, value)
   end
 
-  return math.max(0, config.duration or M.defaults.duration)
+  return math.max(0, config.duration)
 end
 
 ---@return integer
 function M.suppress_ms()
-  return math.max(40, (config.frame_ms or M.defaults.frame_ms) * 3)
+  return math.max(40, config.frame_ms * 3)
 end
 
 function M.begin_manual_scroll()

@@ -38,18 +38,19 @@ end
 
 local function hint_chunks(item, opts)
   return {
-    { item.label .. ' ', item.label_hl or opts.label_hl or 'Comment' },
-    { Keys.display(item.key), item.key_hl or opts.key_hl or 'Special' },
+    { item.label .. ' ', item.label_hl or opts.label_hl },
+    { Keys.display(item.key), item.key_hl or opts.key_hl },
   }
 end
 
+--- 按宽度把工具栏条目折成多行；opts 为 tree_panel.new() 归一化后的 toolbar 配置
 ---@param items VVTreePanelToolbarItem[]
 ---@param width integer
----@param opts VVTreePanelToolbarOptions
+---@param opts VVTreePanelToolbarConfig
 ---@return VVTreePanelChunk[][]
 function M.wrap(items, width, opts)
-  local padding = math.max(0, opts.padding or 1)
-  local separator = opts.separator or '  '
+  local padding = math.max(0, opts.padding)
+  local separator = opts.separator
   local content_width = math.max(1, width - padding * 2)
   local rows = {}
   local current = {}
@@ -61,19 +62,19 @@ function M.wrap(items, width, opts)
     local gap = #current > 0 and vim.fn.strdisplaywidth(separator) or 0
 
     if #current > 0 and current_width + gap + item_width > content_width then
-      table.insert(current, 1, { string.rep(' ', padding), opts.label_hl or 'Comment' })
+      table.insert(current, 1, { string.rep(' ', padding), opts.label_hl })
       rows[#rows + 1] = current
       current = {}
       current_width = 0
       gap = 0
     end
-    if gap > 0 then current[#current + 1] = { separator, opts.label_hl or 'Comment' } end
+    if gap > 0 then current[#current + 1] = { separator, opts.label_hl } end
     vim.list_extend(current, chunks)
     current_width = current_width + gap + item_width
   end
 
   if #current > 0 then
-    table.insert(current, 1, { string.rep(' ', padding), opts.label_hl or 'Comment' })
+    table.insert(current, 1, { string.rep(' ', padding), opts.label_hl })
     rows[#rows + 1] = current
   end
   return #rows > 0 and rows or { { { '' } } }
@@ -141,7 +142,7 @@ function M.open(panel)
   vim.bo[panel.toolbar_buf].bufhidden = 'wipe'
   vim.bo[panel.toolbar_buf].swapfile = false
   vim.bo[panel.toolbar_buf].modifiable = false
-  vim.bo[panel.toolbar_buf].filetype = panel.opts.toolbar.filetype or 'vv-tree-panel-toolbar'
+  vim.bo[panel.toolbar_buf].filetype = panel.opts.toolbar.filetype
   vim.api.nvim_buf_set_name(panel.toolbar_buf, ('vv-tree-panel-toolbar://%s'):format(panel.opts.id))
 
   UIWindow.hide_chrome(panel.toolbar_win, {

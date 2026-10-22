@@ -17,6 +17,7 @@ local M = {}
 local PREFIX = 'vv-utils.ui_columns: '
 local DEFAULT_SEPARATOR = ' │ '
 local DEFAULT_SEPARATOR_HL = 'FloatBorder'
+local DEFAULT_ALIGN = 'sections'
 local ALIGNS = { sections = true, top = true }
 
 local function fail(message)
@@ -120,7 +121,7 @@ function M.compose(opts)
     widths = widths,
     separator = opts.separator or DEFAULT_SEPARATOR,
     separator_hl = opts.separator_hl or DEFAULT_SEPARATOR_HL,
-    align = opts.align or 'sections',
+    align = opts.align or DEFAULT_ALIGN,
     break_on_space = opts.break_on_space ~= false,
   })
 end
@@ -156,7 +157,7 @@ function M.decide(opts)
     min_column_width = min_column_width,
     max_column_width = max_column_width,
     separator = opts.separator or DEFAULT_SEPARATOR,
-    align = opts.align or 'sections',
+    align = opts.align or DEFAULT_ALIGN,
   })
 end
 

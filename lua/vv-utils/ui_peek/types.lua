@@ -25,7 +25,7 @@
 ---@field hl? {line?:string,range?:string} 落点行与范围高亮组 @default { line = 'CursorLine', range = 'CurSearch' }
 ---@field max_lines? integer 从 uri/path 读取的行上限，0 表示全部 @default 0
 ---@field on_close? fun() 浮窗关闭（任何路径）后的回调，用于调用方清理会话状态
----@field hints? VVKeyHint[]|fun(ctx:VVUiPeekContext):VVKeyHint[]|false 底部边框的按键提示（经 ui_window.key_hints 渲染，key/desc 分别用 VVKeyHint/VVKeyHintDesc）；宽度不足时整条丢弃尾部条目，窗口尺寸变化时重算；函数形态在宽高确定后调用；只做展示，实际映射仍由 close_keys/keys 决定 @default false
+---@field hints? (VVKeyHint[]|fun(ctx:VVUiPeekContext):VVKeyHint[])|false 底部边框的按键提示（经 ui_window.key_hints 渲染，key/desc 分别用 VVKeyHint/VVKeyHintDesc）；宽度不足时整条丢弃尾部条目，窗口尺寸变化时重算；函数形态在宽高确定后调用；只做展示，实际映射仍由 close_keys/keys 决定 @default false
 ---@field footer_pos? 'center'|'left'|'right' 提示 footer 对齐 @default 'center'
 
 ---@class VVUiPeekItem

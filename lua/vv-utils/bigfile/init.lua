@@ -18,11 +18,11 @@ local M = {}
 ---@field syntax boolean 默认 setup 是否恢复传统 syntax @default false
 
 ---@class vv-utils.bigfile.Opts
----@field notify? boolean                             触发时弹通知
----@field size? integer                               字节数硬阈值
----@field line_length? integer                        平均行长阈值（minified 识别）
+---@field notify? boolean                             触发时弹通知 @default true
+---@field size? integer                               字节数硬阈值 @default 1048576（1 MiB）
+---@field line_length? integer                        平均行长阈值（minified 识别） @default 800
 ---@field syntax? boolean                             默认 setup 是否恢复传统 syntax，false 可避免大文件深处重绘阻塞 @default false
----@field setup? fun(ctx: vv-utils.bigfile.Ctx): nil  自定义副作用（覆盖默认禁用项）
+---@field setup? fun(ctx: vv-utils.bigfile.Ctx): nil  自定义副作用（覆盖默认禁用项） @default 禁用 matchparen、折叠、statuscolumn、conceal、补全与 mini.animate/hipatterns，并按 syntax 恢复或关闭传统高亮
 local defaults = {
   notify = true,
   size = 1 * 1024 * 1024,
@@ -80,7 +80,7 @@ end
 
 ---@param user_opts? vv-utils.bigfile.Opts
 function M.setup(user_opts)
-  local opts = vim.tbl_deep_extend('force', defaults, user_opts or {})
+  local opts = vim.tbl_deep_extend('force', vim.deepcopy(defaults), user_opts or {})
   resolved = opts
 
   vim.filetype.add({

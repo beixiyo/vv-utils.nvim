@@ -26,7 +26,7 @@ panel:toggle()
 
 ## API 与契约
 
-`new(opts)` 要求非空 `id` 与 `source()`，可选 `state`（需有 `get` / `set`）保存宽度。实例提供 `open()`、`close()`、`toggle()`、`refresh()`、折叠与跳转操作；窗口是否存在可用 `is_open()` 判断
+`new(opts)` 要求非空 `id` 与 `source()`，可选 `state`（需有 `get` / `set`）保存宽度。默认值只在 tree_panel 内维护：`filetype = 'vv-tree-panel'`、`width = 52`、`position = 'right'`、`preview_debounce_ms = 80`、`width_save_debounce_ms = 120`；`new` 在入口与 `opts` 合并一次，结果存为 `panel.opts`，不改写调用方传入的表。调用方只传自己需要覆盖的字段，不要再抄一份这些默认值。实例提供 `open()`、`close()`、`toggle()`、`refresh()`、折叠与跳转操作；窗口是否存在可用 `is_open()` 判断
 
 `apply_mappings(panel, mappings, opts?)` 只安装显式动作表。`apply_default_mappings(panel, overrides?, opts?)` 才安装通用键位：`j`/`k`/`C-n`/`C-p` 预览移动、`h`/`l` 树导航、`Enter` 打开、`gf` 打开后关闭、`g?` 帮助。`syntax_chunks(text, lang, fallback_hl?)` 为独立文本生成 Tree-sitter chunks
 

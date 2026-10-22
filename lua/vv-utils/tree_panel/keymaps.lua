@@ -112,7 +112,7 @@ function M.open_help(panel)
     actions = help_actions,
     categories = { 'Navigate', 'View' },
     title = (panel.opts.title or panel.opts.id) .. ' keymaps',
-    filetype = (panel.opts.filetype or 'vv-tree-panel') .. '-help',
+    filetype = panel.opts.filetype .. '-help',
   }, configured)
   help_opts.actions = vim.tbl_deep_extend('force', help_actions, configured.actions or {})
   help_opts.source_buf = panel.buf

@@ -308,7 +308,7 @@ local function apply_keymaps(buf, cfg)
     applied[#applied + 1] = lhs
   end
   if cfg.close_keys ~= false then
-    for _, key in ipairs(cfg.close_keys or defaults.close_keys) do
+    for _, key in ipairs(cfg.close_keys) do
       map(key, function() M.close(true) end)
     end
   end

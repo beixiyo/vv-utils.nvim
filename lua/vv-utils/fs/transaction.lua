@@ -117,7 +117,7 @@ end
 ---@param from_field 'old'|'new'
 ---@param to_field 'old'|'new'
 ---@return boolean ok
----@return string? error
+---@return string|vv-utils.transaction.Failure? error
 function Transaction:_compensate_entry(entry, from_field, to_field)
   local ok_read, content = pcall(self.read, entry.path)
   if not ok_read then

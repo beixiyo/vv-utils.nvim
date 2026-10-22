@@ -87,14 +87,14 @@ end
 
 local function animation_duration(total, limit)
   local config = state.config()
-  local frame_ms = math.max(1, config.frame_ms or state.defaults.frame_ms)
+  local frame_ms = math.max(1, config.frame_ms)
   local duration = frame_ms * math.max(total - 1, 1)
   return math.min(limit, duration)
 end
 
 local function step_limit_for_duration(limit)
   local config = state.config()
-  local frame_ms = math.max(1, config.frame_ms or state.defaults.frame_ms)
+  local frame_ms = math.max(1, config.frame_ms)
   return math.max(1, math.floor(limit / frame_ms) + 1)
 end
 
@@ -180,7 +180,7 @@ function M.window(win_id, lines)
 
       local current_config = state.config()
       local interval = intervals[scrolled]
-        or (current_config.frame_ms or state.defaults.frame_ms)
+        or (current_config.frame_ms)
       timer:start(interval, 0, tick)
     end)
   end
@@ -189,7 +189,7 @@ function M.window(win_id, lines)
 end
 
 local function build_subscrolls(total, max_steps)
-  local steps = math.min(total, math.max(1, max_steps or state.defaults.auto_max_steps))
+  local steps = math.min(total, math.max(1, max_steps))
   local chunks = {}
 
   for i = 1, steps do
@@ -209,7 +209,7 @@ function M.auto_step_count(total)
   local config = state.config()
   local limit = state.duration_limit('auto_duration')
   local max_steps = math.min(
-    config.auto_max_steps or state.defaults.auto_max_steps,
+    config.auto_max_steps,
     step_limit_for_duration(limit)
   )
 
@@ -275,7 +275,7 @@ local function start_auto_scroll(from_state, to_state)
 
   local config = state.config()
   local total = math.abs(to_state.view.topline - from_state.view.topline)
-  if total < math.max(1, config.auto_min_lines or state.defaults.auto_min_lines) then
+  if total < math.max(1, config.auto_min_lines) then
     state.runtime.auto_state[win_id] = to_state
     return
   end
@@ -345,7 +345,7 @@ local function start_auto_scroll(from_state, to_state)
 
       local current_config = state.config()
       local interval = intervals[step]
-        or (current_config.frame_ms or state.defaults.frame_ms)
+        or (current_config.frame_ms)
       timer:start(interval, 0, tick)
     end)
   end

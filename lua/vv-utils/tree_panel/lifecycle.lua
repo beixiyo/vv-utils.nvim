@@ -48,11 +48,11 @@ function M.open(panel)
   panel.file_preview = Preview.new(panel.source_win)
   panel.preview_cursor, panel.cancel_preview = Timer.debounce(function()
     panel:_preview_cursor()
-  end, panel.opts.preview_debounce_ms or 80)
+  end, panel.opts.preview_debounce_ms)
   if panel.opts.state then
     panel.save_width_debounced, panel.cancel_width_save = Timer.debounce(function()
       panel:_save_width()
-    end, panel.opts.width_save_debounce_ms or 120)
+    end, panel.opts.width_save_debounce_ms)
   end
 
   panel.buf = vim.api.nvim_create_buf(false, true)
@@ -70,7 +70,7 @@ function M.open(panel)
   vim.bo[panel.buf].buftype = 'nofile'
   vim.bo[panel.buf].bufhidden = 'wipe'
   vim.bo[panel.buf].swapfile = false
-  vim.bo[panel.buf].filetype = panel.opts.filetype or 'vv-tree-panel'
+  vim.bo[panel.buf].filetype = panel.opts.filetype
   vim.bo[panel.buf].modifiable = false
   vim.api.nvim_buf_set_name(panel.buf, ('vv-tree-panel://%s'):format(panel.opts.id))
 

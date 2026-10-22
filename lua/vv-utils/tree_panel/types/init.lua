@@ -53,14 +53,19 @@
 ---@field key_hl? string
 ---@field label_hl? string
 
----@class VVTreePanelToolbarOptions
----@field position? 'top'|'bottom' 工具栏位置 @default 'top'
+--- new() 合并默认值后的完整工具栏配置
+---@class VVTreePanelToolbarConfig
+---@field position 'top'|'bottom' 工具栏位置 @default 'top'
 ---@field items VVTreePanelToolbarItem[]|fun(ctx: VVTreePanelRenderContext): VVTreePanelToolbarItem[]
----@field filetype? string @default 'vv-tree-panel-toolbar'
----@field padding? integer @default 1
----@field separator? string @default '  '
----@field key_hl? string @default 'Special'
----@field label_hl? string @default 'Comment'
+---@field filetype string @default 'vv-tree-panel-toolbar'
+---@field padding integer @default 1
+---@field separator string @default '  '
+---@field key_hl string @default 'Special'
+---@field label_hl string @default 'Comment'
+
+--- 工具栏输入配置；除 items 外均可省略
+---@class (partial) VVTreePanelToolbarOptions : VVTreePanelToolbarConfig
+---@field items VVTreePanelToolbarItem[]|fun(ctx: VVTreePanelRenderContext): VVTreePanelToolbarItem[]
 
 ---@class VVTreePanelNode
 ---@field id string
@@ -99,12 +104,12 @@
 ---@class VVTreePanelOptions
 ---@field id string
 ---@field title? string
----@field filetype? string
----@field width? integer
+---@field filetype? string  面板 buffer 的 filetype；帮助面板使用 `<filetype>-help` @default 'vv-tree-panel'
+---@field width? integer  初始宽度；state 中已保存的宽度优先 @default 52
 ---@field state? VVStateHandle  宽度持久状态；使用 state 下的 `width` 字段 @default nil
 ---@field width_save_debounce_ms? integer  resize 后写入 state 的防抖时间 @default 120
----@field position? 'left'|'right'
----@field preview_debounce_ms? integer
+---@field position? 'left'|'right'  侧栏位置 @default 'right'
+---@field preview_debounce_ms? integer  光标移动后预览的防抖时间 @default 80
 ---@field on_attach? fun(panel: VVTreePanel, buf: integer)  buffer 配置入口；快捷键由调用方在此注册
 ---@field source fun(ctx: VVTreePanelRenderContext): VVTreePanelNode[]
 ---@field render? VVTreePanelRenderers

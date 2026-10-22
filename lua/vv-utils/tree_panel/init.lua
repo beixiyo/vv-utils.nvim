@@ -39,6 +39,38 @@ local Panel = {}
 Panel.__index = Panel
 local actions
 
+-- 面板默认值只在此处维护；调用方传自己的原始子表，new() 在入口归一化一次
+local defaults = {
+  filetype = 'vv-tree-panel',
+  width = 52,
+  width_save_debounce_ms = 120,
+  position = 'right',
+  preview_debounce_ms = 80,
+}
+
+-- 工具栏默认值；toolbar 为 nil/false 表示不显示工具栏，只有传入表时才合并
+local toolbar_defaults = {
+  position = 'top',
+  filetype = 'vv-tree-panel-toolbar',
+  padding = 1,
+  separator = '  ',
+  key_hl = 'Special',
+  label_hl = 'Comment',
+}
+
+---@param opts VVTreePanelOptions
+---@return VVTreePanelOptions
+local function normalize(opts)
+  local config = vim.tbl_deep_extend('force', vim.deepcopy(defaults), opts)
+
+  if type(config.toolbar) == 'table' then
+    config.toolbar = vim.tbl_deep_extend('force', vim.deepcopy(toolbar_defaults), config.toolbar)
+  end
+
+  return config
+end
+
+--- 创建面板实例；opts 与默认值合并后存为 panel.opts，不改写调用方传入的表
 ---@param opts VVTreePanelOptions
 ---@return VVTreePanel
 function M.new(opts)
@@ -55,7 +87,7 @@ function M.new(opts)
   end
 
   return setmetatable({
-    opts = opts,
+    opts = normalize(opts),
     nodes = {},
     folded = {},
     rows = {},
@@ -100,7 +132,7 @@ function Panel:_initial_width()
   end
 
   if self.current_width then return self.current_width end
-  return self.opts.width or 52
+  return self.opts.width
 end
 
 ---@return integer?
@@ -198,6 +230,7 @@ function Panel:render()
     if render.winbar ~= false then
       row = render.winbar({ panel = self, count = #visible })
     end
+    ---@cast row VVUIRowsRow|string|nil
     vim.wo[self.win].winbar = Renderer.statusline(row)
   end
 
