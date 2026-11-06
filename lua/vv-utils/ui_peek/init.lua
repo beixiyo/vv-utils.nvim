@@ -358,8 +358,8 @@ function M.show(item, override)
   if filetype then
     if vim.bo[buf].filetype ~= filetype then
       vim.bo[buf].filetype = filetype
-      -- 快照 buffer 不经过 nvim-treesitter 的 attach 流程，手动启动语法高亮
-      pcall(vim.treesitter.start, buf, filetype)
+      -- 快照不经过常规 attach；由 Neovim 解析 filetype → parser（如 typescriptreact → tsx）
+      pcall(vim.treesitter.start, buf)
     end
   elseif vim.bo[buf].filetype ~= '' then
     vim.bo[buf].filetype = ''

@@ -21,7 +21,7 @@ end
 local function sync_background(panel)
   if not (panel.toolbar_win and vim.api.nvim_win_is_valid(panel.toolbar_win)) then return end
   local normal_hl = panel_normal_hl(panel)
-  vim.wo[panel.toolbar_win].winhighlight = table.concat({
+  vim.wo[panel.toolbar_win][0].winhighlight = table.concat({
     'Normal:' .. normal_hl,
     'EndOfBuffer:' .. normal_hl,
     'StatusLine:' .. normal_hl,

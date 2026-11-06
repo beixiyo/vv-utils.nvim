@@ -78,7 +78,7 @@ function M.open(panel)
     cursorline = true,
     winfixwidth = true,
   })
-  vim.wo[panel.win].winhighlight = 'Normal:Normal,CursorLine:Visual'
+  vim.wo[panel.win][0].winhighlight = 'Normal:Normal,CursorLine:Visual'
 
   if panel.opts.on_attach then panel.opts.on_attach(panel, panel.buf) end
   Toolbar.open(panel)

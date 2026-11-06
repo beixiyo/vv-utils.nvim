@@ -111,9 +111,13 @@ function M.track_state_partial(win_id)
   local tracked = state.runtime.auto_state[win_id or vim.api.nvim_get_current_win()]
   if not tracked or state.runtime.auto_busy[tracked.win_id] then return end
 
-  local fresh = viewport.capture_state(tracked.win_id)
-  if fresh then
-    tracked.cursor = fresh.cursor
+  if not vim.api.nvim_win_is_valid(tracked.win_id) then return end
+
+  local ok, cursor = pcall(vim.api.nvim_win_call, tracked.win_id, function()
+    return { line = vim.fn.line('.'), virtcol = vim.fn.virtcol('.') }
+  end)
+  if ok then
+    tracked.cursor = cursor
   end
 end
 

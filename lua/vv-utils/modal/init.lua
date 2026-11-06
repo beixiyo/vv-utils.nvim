@@ -150,7 +150,7 @@ function M.open(opts)
 
   UIWindow.hide_chrome(window, window_opts.chrome)
   vim.wo[window].wrap = true
-  vim.wo[window].linebreak = true
+  vim.wo[window][0].linebreak = true
   vim.wo[window].cursorline = false
   vim.wo[window].scrolloff = 0
   if content.footer_row then pcall(vim.api.nvim_win_set_cursor, window, { content.footer_row + 1, 0 }) end

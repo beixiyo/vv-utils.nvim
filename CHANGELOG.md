@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 - 2026-11-06
+
+### Added
+
+- **async**：新增 `batch` 时间预算分片、`coalesce` 调度合并和 `worker_task` 后台纯计算公共 API
+
+### Changed
+
+- **scroll**：部分状态追踪只读取光标位置，避免重复捕获完整视口
+
+### Fixed
+
+- **modal** 和 **tree_panel**：窗口装饰选项使用局部作用域，避免改写派生窗口的默认副本
+- **ui_peek**：按 filetype 解析 Tree-sitter parser，支持 TSX 等文件类型
+
 ## 0.8.2 - 2026-10-22
 
 ### Changed
