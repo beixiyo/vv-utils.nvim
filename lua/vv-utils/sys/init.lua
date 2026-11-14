@@ -171,5 +171,7 @@ M.is_remote = require('vv-utils.sys.remote').is_remote
 M.is_remote_async = require('vv-utils.sys.remote').is_remote_async
 --- 在连 tmux 客户端逐个判定是否经远程连入（机制，「任一 / 全部」由调用方决定），见 sys/remote.lua
 M.tmux_clients = require('vv-utils.sys.remote').tmux_clients
+--- tmux_clients 的异步版本，callback(clients) 在主循环中调用
+M.tmux_clients_async = require('vv-utils.sys.remote').tmux_clients_async
 
 return M

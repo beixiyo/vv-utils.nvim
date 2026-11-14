@@ -425,6 +425,15 @@ function M.show(item, override)
       if state and state.source_win == item.source_win then M.close(false) end
     end,
   })
+  -- 浮窗被 :q / <C-w>c / <C-w>o 等外部方式关闭：同样走 close 释放状态并触发 on_close，
+  -- 否则调用方的会话（请求、源窗口监听）残留，之后关源窗口时会误伤新会话
+  vim.api.nvim_create_autocmd('WinClosed', {
+    group = group,
+    pattern = tostring(win),
+    callback = function()
+      if state and state.win == win then M.close(false) end
+    end,
+  })
   vim.api.nvim_create_autocmd({ 'VimResized', 'WinResized' }, { group = group, callback = refresh_footer })
   return { win = win, buf = buf, source_win = item.source_win }
 end

@@ -207,4 +207,23 @@ T["来源窗口关闭后预览一同关闭"] = function()
   end)
 end
 
+T["浮窗被外部关闭时同样释放状态并触发 on_close"] = function()
+  child.lua_func(function()
+    local closed = 0
+    Peek.setup({ on_close = function() closed = closed + 1 end })
+    local info = assert(Peek.show({ lines = content, source_win = source_win }))
+    vim.api.nvim_set_current_win(info.win)
+    vim.cmd('close')
+    assert(not Peek.is_open(), ':close 后浮窗应处于关闭状态')
+    assert(closed == 1, '外部关闭也必须触发一次 on_close')
+    assert(not vim.api.nvim_buf_is_valid(info.buf), '快照 buffer 应随之释放')
+
+    -- 之后关闭源窗口不得补触发第二次
+    vim.api.nvim_set_current_win(source_win)
+    vim.cmd('vsplit')
+    vim.api.nvim_win_close(source_win, false)
+    assert(closed == 1, '已释放的会话不得再次触发 on_close')
+  end)
+end
+
 return T

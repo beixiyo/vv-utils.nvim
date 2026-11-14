@@ -264,6 +264,17 @@ function M.tmux_clients(opts)
   return classify(run_sync, lazy_process_table(run_sync), opts and opts.target)
 end
 
+--- tmux_clients 的异步版本：不阻塞主循环，callback 始终在本函数返回之后、于主循环中调用
+--- 调用约束与错误报告同 is_remote_async
+---@param opts? { target?: string }
+---@param callback fun(clients: VVRemoteClient[]?)
+function M.tmux_clients_async(opts, callback)
+  local target = opts and opts.target
+  resume(coroutine.create(function()
+    deliver(callback, classify(run_async, lazy_process_table(run_async), target))
+  end))
+end
+
 --- 当前 nvim 是否正被远程驱动（含本机 tmux 被 SSH / mosh attach 的情形；不在 tmux 时同样可用）
 --- 同步执行外部命令（会阻塞数十 ms），结果不缓存：tmux 客户端随时可能 attach / detach
 ---@return boolean

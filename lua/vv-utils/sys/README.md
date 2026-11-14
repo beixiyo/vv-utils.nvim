@@ -18,7 +18,7 @@ require('vv-utils.sys').open_default(vim.api.nvim_buf_get_name(0))
 
 `ps` 失败（不存在、非零退出、被信号终止或超时；被信号终止的命令即使退出码为 0 也按失败处理，与 shell 侧一致）视为进程链信息不可用：跳过 1、2 两步，直接按环境变量兜底。一次判定同步执行 `tmux list-clients`（仅在 tmux 内）与 `ps -A` 各最多一次（各带 500ms 超时），通常阻塞数十 ms；最坏情况下单条命令约 1s（`SystemObj:wait` 先等 500ms，超时发 SIGKILL 后再等至多 500ms），一次判定合计约 2s，SIGKILL 后仍拿不到结果按命令失败处理。结果不缓存，调用方按需自行缓存。`is_remote_async(callback)` 是不阻塞的版本，适合在 `FocusGained` 等高频事件里重新检测：单条命令超过 500ms 即发 SIGKILL 并按命令失败处理（不等进程退出，忽略 SIGTERM 的进程也不会让 callback 迟到或堆积），一次判定合计最多约 1s；判定或 callback 抛错时以 ERROR 级 `vim.notify` 报告，不会被静默吞掉
 
-`tmux_clients({ target? })` 只给出逐客户端的分类 `{ pid, remote }[]`（机制），「任一 / 全部」由调用方决定；`target` 限定为连在该 session（可传 pane id）上的客户端。不在 tmux / 没有客户端 / 查询或 `ps` 失败返回 nil
+`tmux_clients({ target? })` 只给出逐客户端的分类 `{ pid, remote }[]`（机制），「任一 / 全部」由调用方决定；`target` 限定为连在该 session（可传 pane id）上的客户端。不在 tmux / 没有客户端 / 查询或 `ps` 失败返回 nil。`tmux_clients_async(opts, callback)` 是不阻塞的版本，约束同 `is_remote_async`
 
 ```lua
 if not require('vv-utils.sys').is_remote() then

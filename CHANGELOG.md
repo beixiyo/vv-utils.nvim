@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 - 2026-11-14
+
+### Added
+
+- **sys**：新增 `tmux_clients_async`，后台查询 tmux client 列表，不阻塞主线程
+
+### Fixed
+
+- **ui_peek**：浮窗被 `:q`、`<C-w>c` 等外部方式关闭时也触发 `on_close`
+
 ## 0.9.0 - 2026-11-06
 
 ### Added
