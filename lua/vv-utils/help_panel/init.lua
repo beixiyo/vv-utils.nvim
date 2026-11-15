@@ -276,6 +276,7 @@ function M.open(opts)
     width = content.width,
     height = #content.lines,
     title = ' help ',
+    backdrop = true,
     chrome = { cursorline = true },
   })
 

@@ -30,6 +30,7 @@ require('vv-utils.ui_rows.types')
 ---@field max_width? integer @default min(96, editor width - 4)
 ---@field margin? integer @default 4
 ---@field zindex? integer
+---@field backdrop? boolean 在模态框下垫半透明遮罩压暗其余界面 @default true
 ---@field chrome? table<string, any>
 
 ---@class VVModalOptions

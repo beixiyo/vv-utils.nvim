@@ -147,6 +147,8 @@ function M.open(opts)
 
   if window_opts.zindex then float.zindex = window_opts.zindex end
   local window = vim.api.nvim_open_win(buffer, true, float)
+  -- 遮罩跟随窗口关闭自行清理；调用方显式给了 zindex 时遮罩自动垫在它下面一层
+  if window_opts.backdrop ~= false then UIWindow.backdrop(window) end
 
   UIWindow.hide_chrome(window, window_opts.chrome)
   vim.wo[window].wrap = true

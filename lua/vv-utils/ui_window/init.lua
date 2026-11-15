@@ -28,9 +28,11 @@ M.DEFAULT_OPTS = {
   spell = false,
 }
 
+---@alias VVUIWindowSize number|fun(): number 大于等于 1 为列数／行数，小于 1 为占编辑器的比例；函数在每次布局时求值
+
 ---@class VVUIWindowFloatOptions
----@field width integer 期望的正文宽度
----@field height integer 期望的正文高度
+---@field width VVUIWindowSize 期望的正文宽度
+---@field height VVUIWindowSize 期望的正文高度
 ---@field margin? integer 为编辑器边缘预留的总宽高 @default 4
 ---@field enter? boolean 是否进入新窗口 @default true
 ---@field border? string|string[] 边框样式 @default 'rounded'
@@ -39,23 +41,37 @@ M.DEFAULT_OPTS = {
 ---@field footer? string|table[] 固定在边框上的页脚
 ---@field footer_pos? 'left'|'center'|'right' 页脚位置 @default 'center'
 ---@field chrome? table<string, any> window-local 选项覆盖
+---@field zindex? integer 浮窗层级；缺省用 Neovim 的默认值
+---@field backdrop? boolean|integer 在浮窗下垫一层半透明遮罩压暗其余界面；数字为遮罩的 'winblend'，true 等于 60 @default false
+---@field relayout? boolean 终端尺寸变化时按原始 opts 重新居中并约束尺寸 @default true
 
 ---@class VVUIWindowFloatHandle
 ---@field win integer
 ---@field buf integer
 ---@field close fun() 幂等关闭浮窗
+---@field update fun(opts: VVUIWindowFloatOptions) 合并新的尺寸、标题或页脚并立即重新布局
+---@field relayout fun() 按当前 opts 重新计算位置与尺寸
+
+---@param size VVUIWindowSize
+---@param total integer 编辑器在该方向上的总量
+---@return integer
+local function resolve_size(size, total)
+  if type(size) == 'function' then size = size() end
+  if size < 1 then return math.floor(total * size) end
+  return math.floor(size)
+end
 
 ---生成受当前编辑器尺寸约束的居中浮窗配置
 ---@param opts VVUIWindowFloatOptions
 ---@return table
 function M.centered_config(opts)
   vim.validate('opts', opts, 'table')
-  vim.validate('opts.width', opts.width, 'number')
-  vim.validate('opts.height', opts.height, 'number')
+  vim.validate('opts.width', opts.width, { 'number', 'function' })
+  vim.validate('opts.height', opts.height, { 'number', 'function' })
 
   local margin = math.max(0, opts.margin or 4)
-  local width = math.max(1, math.min(math.floor(opts.width), math.max(1, vim.o.columns - margin)))
-  local height = math.max(1, math.min(math.floor(opts.height), math.max(1, vim.o.lines - margin)))
+  local width = math.max(1, math.min(resolve_size(opts.width, vim.o.columns), math.max(1, vim.o.columns - margin)))
+  local height = math.max(1, math.min(resolve_size(opts.height, vim.o.lines), math.max(1, vim.o.lines - margin)))
   local config = {
     relative = 'editor',
     row = math.max(0, math.floor((vim.o.lines - height) / 2)),
@@ -74,6 +90,7 @@ function M.centered_config(opts)
     config.footer = opts.footer
     config.footer_pos = opts.footer_pos or 'center'
   end
+  if opts.zindex then config.zindex = opts.zindex end
 
   return config
 end
@@ -85,16 +102,74 @@ end
 function M.open_float(buf, opts)
   assert(vim.api.nvim_buf_is_valid(buf), 'buf must be a valid buffer')
 
+  opts = vim.deepcopy(opts)
   local win = assert(vim.api.nvim_open_win(buf, opts.enter ~= false, M.centered_config(opts)))
   M.hide_chrome(win, opts.chrome)
+
+  local backdrop
+  if opts.backdrop then
+    backdrop = require('vv-utils.ui_window.backdrop').open(win, {
+      blend = type(opts.backdrop) == 'number' and opts.backdrop or nil,
+    })
+  end
+
+  local group = vim.api.nvim_create_augroup('vv-utils.ui_window.float.' .. win, { clear = true })
+  local closed = false
+
+  local function release()
+    if closed then return end
+    closed = true
+    pcall(vim.api.nvim_del_augroup_by_id, group)
+    if backdrop then backdrop.close() end
+  end
+
+  -- 只重写几何：标题和页脚可能已被调用方或 loading.win_text 改写，这里不覆盖
+  local function relayout()
+    if closed or not vim.api.nvim_win_is_valid(win) then return end
+    local config = M.centered_config(opts)
+    vim.api.nvim_win_set_config(win, {
+      relative = config.relative,
+      row = config.row,
+      col = config.col,
+      width = config.width,
+      height = config.height,
+    })
+  end
+
+  if opts.relayout ~= false then
+    vim.api.nvim_create_autocmd('VimResized', { group = group, callback = relayout })
+  end
+  vim.api.nvim_create_autocmd('WinClosed', {
+    group = group,
+    pattern = tostring(win),
+    callback = function() vim.schedule(release) end,
+  })
 
   return {
     win = win,
     buf = buf,
+    relayout = relayout,
+    update = function(patch)
+      if closed or not vim.api.nvim_win_is_valid(win) then return end
+      for key, value in pairs(patch or {}) do opts[key] = value end
+      -- 标题与页脚是调用方显式给出的新值，连同几何一起写入
+      local config = M.centered_config(opts)
+      config.style, config.border = nil, nil
+      vim.api.nvim_win_set_config(win, config)
+    end,
     close = function()
+      release()
       if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
     end,
   }
+end
+
+---给已有浮窗垫一层半透明遮罩；自行调用 nvim_open_win 的模块用它，open_float 用 `backdrop` 选项即可
+---@param win integer
+---@param opts? VVBackdropOptions
+---@return VVBackdropHandle? handle 终端不支持或 Normal 透明时为 nil
+function M.backdrop(win, opts)
+  return require('vv-utils.ui_window.backdrop').open(win, opts)
 end
 
 ---@param win integer

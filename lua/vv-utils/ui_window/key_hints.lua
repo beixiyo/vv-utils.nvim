@@ -32,8 +32,14 @@ local function width_of(text) return vim.fn.strdisplaywidth(text) end
 ---@param opts VVKeyHintsOptions
 ---@return { chunks: [string, string][], width: integer }?
 local function entry(hint, opts)
-  if type(hint) ~= 'table' or type(hint.key) ~= 'string' or hint.key == '' then return nil end
-  local chunks = { { Keys.display(hint.key), opts.key_hl } }
+  if type(hint) ~= 'table' then return nil end
+  local keys = type(hint.key) == 'table' and hint.key or { hint.key }
+  local labels = {}
+  for _, key in ipairs(keys) do
+    if type(key) == 'string' and key ~= '' then labels[#labels + 1] = Keys.display(key) end
+  end
+  if #labels == 0 then return nil end
+  local chunks = { { table.concat(labels, '/'), opts.key_hl } }
   if type(hint.desc) == 'string' and hint.desc ~= '' then
     chunks[2] = { ' ' .. hint.desc, opts.desc_hl }
   end
@@ -93,7 +99,7 @@ end
 return M
 
 ---@class VVKeyHint
----@field key string 键位记号，展示前经 vv-utils.keys.display 转换（'<CR>' → '↵'）
+---@field key string|string[] 键位记号，展示前经 vv-utils.keys.display 转换（'<CR>' → '↵'）；多个键触发同一动作时传数组，显示为 `↵/r`
 ---@field desc? string 动作描述；缺省只显示键
 
 ---@class VVKeyHintsOptions

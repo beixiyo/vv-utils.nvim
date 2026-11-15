@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.0 - 2026-11-15
+
+### Added
+
+- **ui_view**：居中浮窗里的列表界面。标签栏、分组加计数、可展开详情、页脚按键提示、按条目 id 保持光标、鼠标点击标签，调用方只提供每页内容与按键动作
+- **ui_window**：`open_float` 支持 `backdrop` 半透明遮罩、比例或函数形式的 `width` / `height`、`zindex`，终端缩放后自动重新居中；句柄新增 `update` 与 `relayout`；新增 `backdrop(win)` 给已有浮窗加遮罩
+- **ui_rows**：新增 `width`、`pad`、`truncate`（可从左侧截断）、`table`（按显示宽度列对齐）与 `bar`（比例条）
+- **ui_window.key_hints**：`key` 接受数组，多个键触发同一动作时显示为 `↵/r`
+
+### Changed
+
+- **modal** / **help_panel**：默认带背景遮罩；`modal` 可用 `window.backdrop = false` 关闭
+
 ## 0.11.0 - 2026-11-15
 
 ### Added

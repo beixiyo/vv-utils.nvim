@@ -4,6 +4,11 @@ require('vv-utils.ui_rows.types')
 
 local M = {}
 
+require('vv-utils.hl').register('vv-utils.ui_rows', {
+  VVBarDone = { link = 'Constant' },
+  VVBarTodo = { link = 'LineNr' },
+})
+
 local function escape_statusline(text)
   return (text or ''):gsub('%%', '%%%%')
 end
@@ -124,6 +129,134 @@ function M.set_rendered_lines(buf, ns, rendered)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false,
     vim.tbl_map(function(item) return item.text end, rendered))
   for line, item in ipairs(rendered) do apply_rendered_line(buf, ns, line - 1, item) end
+end
+
+---@param chunks VVUIRowsChunk[]
+---@return integer width 显示宽度（宽字符与图标按终端实际占位计）
+function M.width(chunks)
+  local total = 0
+  for _, chunk in ipairs(chunks or {}) do
+    total = total + vim.fn.strdisplaywidth(tostring(chunk[1] or ''))
+  end
+  return total
+end
+
+---把片段补齐到指定显示宽度，返回新片段；已超宽时原样返回
+---@param chunks VVUIRowsChunk[]
+---@param width integer
+---@param align? 'left'|'right' 内容靠哪一侧 @default 'left'
+---@return VVUIRowsChunk[]
+function M.pad(chunks, width, align)
+  local result = vim.list_slice(chunks or {})
+  local gap = width - M.width(result)
+  if gap <= 0 then return result end
+
+  local filler = { string.rep(' ', gap) }
+  if align == 'right' then table.insert(result, 1, filler) else result[#result + 1] = filler end
+  return result
+end
+
+---把片段截到指定显示宽度；被截断的一侧换成省略号，不会把宽字符切成半个
+---@param chunks VVUIRowsChunk[]
+---@param width integer
+---@param opts? { side?: 'right'|'left' } 截掉哪一侧；路径这类尾部更重要的内容用 'left' @default { side = 'right' }
+---@return VVUIRowsChunk[]
+function M.truncate(chunks, width, opts)
+  if M.width(chunks) <= width then return vim.list_slice(chunks or {}) end
+  if width <= 0 then return {} end
+
+  local from_left = opts and opts.side == 'left'
+  local budget, used = width - 1, 0
+  local kept = {} ---@type VVUIRowsChunk[] 按保留方向收集，from_left 时为倒序
+
+  local first, last, step = 1, #chunks, 1
+  if from_left then first, last, step = #chunks, 1, -1 end
+
+  for index = first, last, step do
+    local chunk = chunks[index]
+    local text = tostring(chunk[1] or '')
+    local chunk_width = vim.fn.strdisplaywidth(text)
+    if used + chunk_width <= budget then
+      kept[#kept + 1] = { text, chunk[2] }
+      used = used + chunk_width
+    else
+      -- 这个片段放不完整：逐字符保留靠近保留侧的部分，并把省略号接在被截的一侧
+      local count = vim.fn.strchars(text)
+      local part = ''
+      for offset = 0, count - 1 do
+        local char = vim.fn.strcharpart(text, from_left and (count - 1 - offset) or offset, 1)
+        local char_width = vim.fn.strdisplaywidth(char)
+        if used + char_width > budget then break end
+        part = from_left and (char .. part) or (part .. char)
+        used = used + char_width
+      end
+      kept[#kept + 1] = { from_left and ('…' .. part) or (part .. '…'), chunk[2] }
+      break
+    end
+  end
+
+  if not from_left then return kept end
+  local result = {}
+  for index = #kept, 1, -1 do result[#result + 1] = kept[index] end
+  return result
+end
+
+---按列对齐多行：每行是若干单元格，每个单元格是片段数组或字符串
+---
+---列宽取该列最宽单元格的显示宽度；最后一列不补齐，避免行尾出现多余空格
+---@param rows (VVUIRowsChunk[]|string)[][]
+---@param opts? VVUIRowsTableOptions
+---@return VVUIRowsChunk[][] lines 每行一个片段数组，可直接作为 row.chunks
+function M.table(rows, opts)
+  opts = opts or {}
+  local gap = string.rep(' ', opts.gap or 2)
+  local align = opts.align or {}
+  local max_widths = opts.max_widths or {}
+
+  local cells, widths = {}, {}
+  for row_index, row in ipairs(rows) do
+    cells[row_index] = {}
+    for column, cell in ipairs(row) do
+      local chunks = type(cell) == 'string' and { { cell } } or cell
+      if max_widths[column] then chunks = M.truncate(chunks, max_widths[column]) end
+      cells[row_index][column] = chunks
+      widths[column] = math.max(widths[column] or 0, M.width(chunks))
+    end
+  end
+
+  local lines = {}
+  for row_index, row in ipairs(cells) do
+    local line = {}
+    for column, chunks in ipairs(row) do
+      local last = column == #row
+      local padded = (last and align[column] ~= 'right') and chunks or M.pad(chunks, widths[column], align[column])
+      vim.list_extend(line, padded)
+      if not last then line[#line + 1] = { gap } end
+    end
+    lines[row_index] = line
+  end
+  return lines
+end
+
+---水平比例条：已完成段与剩余段各用一种高亮
+---@param ratio number 0 到 1，越界时截到边界
+---@param width integer 总列数
+---@param opts? VVUIRowsBarOptions
+---@return VVUIRowsChunk[]
+function M.bar(ratio, width, opts)
+  opts = opts or {}
+  ratio = math.max(0, math.min(1, ratio or 0))
+  local done = math.floor(width * ratio + 0.5)
+  -- 非零值至少画一格，否则很小的比例会和零无法区分
+  if ratio > 0 and done == 0 then done = 1 end
+
+  local char = opts.char or '━'
+  local chunks = {}
+  if done > 0 then chunks[#chunks + 1] = { string.rep(char, done), opts.done_hl or 'VVBarDone' } end
+  if width > done then
+    chunks[#chunks + 1] = { string.rep(opts.todo_char or char, width - done), opts.todo_hl or 'VVBarTodo' }
+  end
+  return chunks
 end
 
 ---将普通渲染行转换为 winbar/statusline 格式
