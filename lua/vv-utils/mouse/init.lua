@@ -75,4 +75,34 @@ function M.redispatch_outside(win, key)
   return true
 end
 
+local move_event_holders = 0
+local move_event_original ---@type boolean? 第一个持有者进入前的 'mousemoveevent'
+
+---声明需要 <MouseMove> 事件，返回释放函数
+---
+---'mousemoveevent' 是全局选项，多个插件各自「保存原值、退出时写回」会互相覆盖：
+---先退出的把选项关掉，仍在运行的那个就收不到鼠标移动。这里按持有者计数，
+---第一个持有者进入时打开，最后一个释放时才还原
+---
+---还原只在选项原本关闭时发生；持有期间被外部关掉的保持关闭，不会被重新打开
+---@return fun() release 幂等
+function M.hold_move_events()
+  if move_event_holders == 0 then
+    move_event_original = vim.o.mousemoveevent
+    vim.o.mousemoveevent = true
+  end
+  move_event_holders = move_event_holders + 1
+
+  local released = false
+  return function()
+    if released then return end
+    released = true
+    move_event_holders = move_event_holders - 1
+    if move_event_holders > 0 then return end
+
+    if move_event_original == false and vim.o.mousemoveevent then vim.o.mousemoveevent = false end
+    move_event_original = nil
+  end
+end
+
 return M

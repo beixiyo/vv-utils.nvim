@@ -323,7 +323,9 @@ end
 ---@field to_index_stage? 1|2|3 同一路径 index stage 比较的新侧；必须与 from_index_stage 成对提供
 ---@field side? 'new'|'old'  将 hunk 行号投影到新侧或旧侧 @default 'new'
 
+---buffer 的 diff 源声明，经 vv-utils.git.set_diff_source 写入；消费方可按需读取额外字段
 ---@class vv-utils.git.DiffSource: vv-utils.git.DiffLinesOpts
 ---@field path string 相对 root 或绝对文件路径
+---@field marker_kind? 'U' 标记统一按该类型显示（未解决冲突）；省略时按 diff 结果区分增删改
 
 return M

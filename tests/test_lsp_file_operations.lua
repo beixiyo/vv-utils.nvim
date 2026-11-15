@@ -89,4 +89,27 @@ T["单文件与多文件操作协议合并、等待和通知"] = function()
   end)
 end
 
+T["服务端返回错误响应时上报而不是静默丢弃"] = function()
+  child.lua_func(function()
+    local failure = { code = -32603, message = 'rename rejected' }
+
+    -- 同步：request_sync 对 ResponseError 只返回一个值
+    second_client.request_sync = function() return { err = failure } end
+    local edits, _, error = FileOperations.will_rename_sync('/code/a.ts', '/code/b.ts', 1000)
+    assert(edits == nil and error.code == 'resource_rename_lsp_failed', vim.inspect(error))
+    assert(error.message == 'fixture-lsp-utf8: rename rejected', error.message)
+
+    -- 异步：出错的服务端进 errors，其余服务端的编辑照常返回
+    local done
+    FileOperations.will_rename_async('/code/a.ts', '/code/b.ts', 1000, function(result, timed_out, errors)
+      done = { edits = result, timed_out = timed_out, errors = errors }
+    end)
+    pending_callbacks[#pending_callbacks - 1](nil, edit)
+    pending_callbacks[#pending_callbacks](failure, nil)
+    assert(vim.wait(1000, function() return done ~= nil end))
+    assert(#done.edits == 1 and done.timed_out == false)
+    assert(#done.errors == 1 and done.errors[1].message == 'rename rejected', vim.inspect(done.errors))
+  end)
+end
+
 return T

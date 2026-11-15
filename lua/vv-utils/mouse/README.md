@@ -10,6 +10,8 @@
 
 `redispatch_outside(win, key)` 放在 buffer-local 鼠标映射回调的开头：Neovim 按按键时的当前 buffer 查鼠标映射，焦点在面板时点别的窗口也会进面板映射。返回 true（事件不在 `win` 内，已交还给鼠标所在窗口或被吞掉）时调用方直接 return，返回 false 才执行面板动作。它只应在临时 UI buffer 调用；普通文件 buffer 的鼠标选择语义不会被改动，也不应通过这个模块全局禁用 Visual 模式
 
+`hold_move_events()` 声明需要 `<MouseMove>` 事件并返回幂等的释放函数。`'mousemoveevent'` 是全局选项，按持有者计数：第一个持有者进入时打开，最后一个释放时才还原到进入前的值，避免多个插件各自保存、写回时互相关掉对方
+
 ## 使用
 
 在创建 nofile buffer 并设置其交互前调用一次即可。面板销毁时 buffer 生命周期会一并结束，无需把该保护扩展到其他窗口

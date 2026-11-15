@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0 - 2026-11-15
+
+### Added
+
+- **mouse**：新增 `hold_move_events`，按持有者计数管理全局的 `'mousemoveevent'`，返回幂等的释放函数；多个插件同时需要鼠标移动事件时，先退出的不会关掉仍在使用的
+
+- **git**：新增 `set_diff_source` / `diff_source` 与事件名 `DIFF_SOURCE_EVENT`，作为 scratch buffer 声明 Git diff 源的统一约定，取代各插件直接读写 `b:vv_git_diff_source`（旧变量不再读取）
+
+### Fixed
+
+- **lsp.file_operations**：`will_rename_sync` 把服务端返回的错误响应当成「没有编辑」静默继续，现在返回 `resource_rename_lsp_failed`；`will_rename_async` / `will_rename_many_async` 的 `on_done` 新增第三个参数 `errors`
+
 ## 0.10.0 - 2026-11-14
 
 ### Added

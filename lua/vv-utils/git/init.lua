@@ -3,6 +3,7 @@
 local decorations = require('vv-utils.git.decorations')
 local conflicts = require('vv-utils.git.conflicts')
 local diff = require('vv-utils.git.diff')
+local diff_source = require('vv-utils.git.diff_source')
 local repository = require('vv-utils.git.repository')
 local status = require('vv-utils.git.status')
 
@@ -26,6 +27,10 @@ return {
   map_index_markers = diff.map_index_markers,
   diff_line_sets = diff.diff_line_sets,
   diff_lines = diff.diff_lines,
+
+  DIFF_SOURCE_EVENT = diff_source.EVENT,
+  set_diff_source = diff_source.set,
+  diff_source = diff_source.get,
 
   register_hl = decorations.register_hl,
   highlight_specs = decorations.highlight_specs,

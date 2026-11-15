@@ -22,6 +22,8 @@ end, { from_rev = 'HEAD', to_rev = nil, side = 'new' })
 
 `diff_lines(path, cb, opts?)` 获取单侧标记，`from_rev` / `to_rev` 可以指定任意 revision 范围；成对的 `from_index_stage` / `to_index_stage` 可以比较同一路径的 index stage（例如冲突时的 ours `2` 与 theirs `3`），path 须相对 `root` 或位于 `root` 之下，任一 stage 不存在时回调 `nil`；`side` 选择旧侧或新侧。`diff_line_sets(path, cb, opts?)` 同时获取 staged 与 unstaged，并把 staged 坐标映射至 worktree。`parse_diff_lines`、`parse_diff_hunks`、`map_index_markers` 可用于更底层的纯解析
 
+`set_diff_source(buf, source?)` 声明一个 buffer 的内容对应哪一次 Git 比较（字段同 `diff_lines` 的 `opts` 加 `path`），并广播 `User` 事件 `DIFF_SOURCE_EVENT`（`args.data.buf`）；`diff_source(buf)` 读取声明。用于没有磁盘文件的 scratch buffer：生产方（diff 视图）只声明，消费方（状态列、滚动条）只订阅并读取，双方互不依赖
+
 ## 装饰与边界
 
 `symbol_for(xy)` 返回状态符号，`register_hl(augroup)` 注册共享高亮，`highlight_specs()` 返回可安全修改的基准副本。模块不维护调用方 UI 状态；取消只停止自身创建的 Git 进程与回调，不会取消调用方额外派生的工作

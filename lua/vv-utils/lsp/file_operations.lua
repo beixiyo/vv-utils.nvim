@@ -5,6 +5,10 @@ local function supports(client, capability)
   return vim.tbl_get(client, 'server_capabilities', 'workspace', 'fileOperations', capability) ~= nil
 end
 
+---@class VVLspFileOperationError
+---@field client string 返回错误的 LSP 客户端名
+---@field message string
+
 ---@class VVLspFileRename
 ---@field old_path string
 ---@field new_path string
@@ -37,6 +41,12 @@ function M.clients(capability)
   return vim.tbl_filter(function(client) return supports(client, capability) end, vim.lsp.get_clients())
 end
 
+---@param response_error lsp.ResponseError|table
+---@return string
+local function response_error_message(response_error)
+  return response_error.message or vim.inspect(response_error)
+end
+
 ---同步收集所有 workspace/willRenameFiles 响应，不应用编辑
 ---@param old_path string
 ---@param new_path string
@@ -48,6 +58,7 @@ function M.will_rename_sync(old_path, new_path, timeout_ms)
   local edits = {}
   local names = {}
   local params = M.rename_params(old_path, new_path)
+
   for _, client in ipairs(M.clients('willRename')) do
     local response, request_error = client:request_sync('workspace/willRenameFiles', params, timeout_ms)
     if request_error then
@@ -56,6 +67,15 @@ function M.will_rename_sync(old_path, new_path, timeout_ms)
         message = client.name .. ': ' .. tostring(request_error),
       }
     end
+
+    -- 服务端的 ResponseError 在 response.err 里，request_sync 的第二个返回值只覆盖超时与发送失败
+    if response and response.err then
+      return nil, nil, {
+        code = 'resource_rename_lsp_failed',
+        message = client.name .. ': ' .. response_error_message(response.err),
+      }
+    end
+
     names[#names + 1] = client.name
     if response and response.result then
       edits[#edits + 1] = {
@@ -72,7 +92,7 @@ end
 ---@param old_path string
 ---@param new_path string
 ---@param timeout_ms integer
----@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean)
+---@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean, errors: VVLspFileOperationError[])
 function M.will_rename_async(old_path, new_path, timeout_ms, on_done)
   M.will_rename_many_async({ { old_path = old_path, new_path = new_path } }, timeout_ms, on_done)
 end
@@ -82,13 +102,16 @@ end
 ---多个文件放进同一个请求，服务端返回一份互相一致的编辑，且总等待时间只受 timeout_ms 约束
 ---@param renames VVLspFileRename[]
 ---@param timeout_ms integer
----@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean)
+---
+---某个服务端返回错误不影响其余服务端的编辑；错误通过 on_done 的 errors 交给调用方决定是否提示
+---@param on_done fun(edits: { edit: table, encoding: string }[], timed_out: boolean, errors: VVLspFileOperationError[])
 function M.will_rename_many_async(renames, timeout_ms, on_done)
   local clients = M.clients('willRename')
   -- 没有要询问的文件时不发请求，与 notify_did_rename_many 对空数组的处理一致
-  if #clients == 0 or #renames == 0 then return on_done({}, false) end
+  if #clients == 0 or #renames == 0 then return on_done({}, false, {}) end
 
   local edits = {}
+  local errors = {} ---@type VVLspFileOperationError[]
   local pending = #clients
   local settled = false
   local timer = vim.uv.new_timer()
@@ -98,16 +121,19 @@ function M.will_rename_many_async(renames, timeout_ms, on_done)
     settled = true
     timer:stop()
     pcall(function() timer:close() end)
-    on_done(edits, timed_out)
+    on_done(edits, timed_out, errors)
   end
 
   timer:start(timeout_ms, 0, vim.schedule_wrap(function() finish(true) end))
   local params = M.renames_params(renames)
+
   for _, client in ipairs(clients) do
     local current_client = client
     current_client:request('workspace/willRenameFiles', params, function(error, result)
       if settled then return end
-      if not error and result then
+      if error then
+        errors[#errors + 1] = { client = current_client.name, message = response_error_message(error) }
+      elseif result then
         edits[#edits + 1] = {
           edit = result,
           encoding = current_client.offset_encoding or 'utf-16',
